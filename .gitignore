@@ -1,0 +1,16 @@
+bin/
+obj/
+*.user
+.vs/
+.idea/
+node_modules/
+frontend/dist/
+TestResults/
+*.received.*
+.env
+.env.local
+.env.*.local
+coverage/
+*.log
+
+*.tsbuildinfo

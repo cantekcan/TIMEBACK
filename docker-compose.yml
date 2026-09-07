@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: timeback
+      POSTGRES_PASSWORD: timeback
+      POSTGRES_DB: timeback
+    ports: ["5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U timeback"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=timeback;Username=timeback;Password=timeback"
+      Cors__Origins__0: "http://localhost:5173"
+      OpenRouter__ApiKey: "${OPENROUTER_API_KEY:-}"
+    ports: ["8080:8080"]
+
+  frontend:
+    build: ./frontend
+    depends_on: [api]
+    environment:
+      VITE_API_BASE_URL: "http://localhost:8080"
+    ports: ["5173:5173"]
+
+volumes:
+  pgdata:

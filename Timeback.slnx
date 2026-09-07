@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Timeback.Api/Timeback.Api.csproj" />
+    <Project Path="src/Timeback.Application/Timeback.Application.csproj" />
+    <Project Path="src/Timeback.Domain/Timeback.Domain.csproj" />
+    <Project Path="src/Timeback.Infrastructure/Timeback.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Timeback.Application.Tests/Timeback.Application.Tests.csproj" />
+    <Project Path="tests/Timeback.Domain.Tests/Timeback.Domain.Tests.csproj" />
+    <Project Path="tests/Timeback.Integration.Tests/Timeback.Integration.Tests.csproj" />
+  </Folder>
+</Solution>
