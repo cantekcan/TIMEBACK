@@ -284,9 +284,16 @@ public class AiCommentatorTests
         var round = new RoundSummaryForAi(3, Score: 40, AutoLocked: false, DecisionTimeSeconds: 5.4m,
             Allocation: new Dictionary<string, int> { ["GOLD"] = 10, ["BIST100"] = 90, ["BTC"] = 0, ["SP500"] = 0 });
 
-        var body = await CapturedPromptFor(SummaryFor(round, missedGain: 264_606m));
+        const decimal missedGain = 264_606m;
+        var body = await CapturedPromptFor(SummaryFor(round, missedGain));
 
-        body.Should().Contain("264.606 TL");
+        // BuildPrompt formats this with {:N0} under the current culture (by design - it's a
+        // player-facing Turkish string, not a machine-readable one), so the separator differs
+        // between environments (e.g. "264.606" on a tr-TR runner, "264,606" on the en-US CI
+        // runner). Formatting the same value the same way here - instead of hardcoding one
+        // culture's rendering - is what actually verifies "264606 reached the prompt correctly",
+        // regardless of which culture the test happens to run under.
+        body.Should().Contain(missedGain.ToString("N0") + " TL");
         body.Should().Contain("BIST100 %90");
         body.Should().Contain("Skor: 40");
     }
