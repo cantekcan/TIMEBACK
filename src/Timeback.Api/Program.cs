@@ -1,4 +1,5 @@
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Scalar.AspNetCore;
 using Serilog;
@@ -49,6 +50,20 @@ builder.Services.AddRateLimiter(options =>
 
 builder.Services.AddHealthChecks();
 
+// Render (and most PaaS hosts) put exactly one reverse proxy in front of the container, at an IP that
+// isn't fixed/publishable in advance - so it can't be added to KnownProxies/KnownNetworks the way the
+// docs' "known, fixed proxy" example does. Per Microsoft's own guidance for this exact case, the known
+// list is cleared instead of widened to "trust everyone": ForwardLimit stays at its default of 1, so
+// only a single hop of X-Forwarded-For/-Proto is ever honored - a client still can't chain fake headers
+// through further hops to spoof its IP. Locally (no proxy in front), requests simply carry no forwarded
+// headers, so this is a no-op there - RemoteIpAddress behaves exactly as before.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 var app = builder.Build();
 
 // CLI mode: `dotnet run -- ingest [--from yyyy-MM] [--to yyyy-MM]`
@@ -59,6 +74,7 @@ if (args.Length > 0 && args[0].Equals("ingest", StringComparison.OrdinalIgnoreCa
 }
 
 app.UseExceptionHandler();
+app.UseForwardedHeaders();
 app.UseSerilogRequestLogging();
 
 if (app.Configuration.GetValue("Seed:OnStartup", true))
