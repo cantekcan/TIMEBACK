@@ -189,11 +189,14 @@ function RoundScreen({ gameId, round, onLocked, onError }: {
   // seconds of slack on top of this for network latency, but that slack is never shown to the
   // player as "more time", otherwise the auto-submit would fire with no time left for its own
   // request to actually reach the server.
+  //
+  // The deadline is anchored to when this screen actually mounts in the browser, not to the
+  // server's round.startedAtUtc - the player never sees the network/render time between the
+  // server starting the round and the screen appearing eaten out of their 10 seconds. The
+  // server still enforces its own authoritative deadline off startedAtUtc independently, so a
+  // late submit is rejected there regardless of what the client shows.
   const totalMs = round.selectionWindowSeconds * 1000;
-  const deadline = useMemo(
-    () => (round.startedAtUtc ? new Date(round.startedAtUtc).getTime() + totalMs : Date.now() + totalMs),
-    [round.startedAtUtc, totalMs],
-  );
+  const [deadline] = useState(() => Date.now() + totalMs);
   const [now, setNow] = useState(() => Date.now());
   const remaining = deadline - now;
   const locking = useRef(false);
