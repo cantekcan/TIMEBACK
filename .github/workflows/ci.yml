@@ -3,36 +3,103 @@ name: CI
 on:
   push: { branches: [main] }
   pull_request: { branches: [main] }
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  # Backend build/test + frontend build/test + SonarQube Cloud analysis all live in one job on
+  # purpose: SonarScanner for .NET's begin/end wraps everything it should analyze, and its staging
+  # state (the .sonarqube folder + MSBuild instrumentation) only survives within a single runner/job -
+  # it cannot span the previous separate backend/frontend jobs. Docker stays a separate, later job.
   backend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with: { fetch-depth: 0 } # SonarQube Cloud needs full history for blame/new-code analysis
+
       - uses: actions/setup-dotnet@v4
-        with: { dotnet-version: '10.0.x' }
+        with:
+          dotnet-version: '10.0.x'
+          cache: true
+          cache-dependency-path: '**/*.csproj'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install SonarScanner for .NET
+        run: dotnet tool install --global dotnet-sonarscanner
+      - name: Cache SonarQube Cloud analysis packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      # sonar.qualitygate.wait=true makes the `end` step below block on and fail for a red Quality
+      # Gate - the current SonarScanner-for-.NET-supported way to fail CI on a Quality Gate failure.
+      - name: SonarScanner begin
+        run: >
+          dotnet sonarscanner begin
+          /k:"cantekcan_TIMEBACK"
+          /o:"cantekcan"
+          /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+          /d:sonar.host.url="https://sonarcloud.io"
+          /d:sonar.qualitygate.wait=true
+          /d:sonar.cs.cobertura.reportsPaths="coverage/**/*.cobertura.xml"
+          /d:sonar.javascript.lcov.reportPaths="frontend/coverage/lcov.info"
+          /d:sonar.typescript.lcov.reportPaths="frontend/coverage/lcov.info"
+          /d:sonar.exclusions="**/bin/**,**/obj/**,**/node_modules/**,**/coverage/**,frontend/dist/**"
+
       - run: dotnet restore Timeback.slnx
       - run: dotnet build Timeback.slnx -c Release --no-restore
-      - name: Unit + application tests
-        run: dotnet test Timeback.slnx -c Release --no-build --filter "FullyQualifiedName!~Integration"
-      - name: Integration tests (Testcontainers / Docker)
-        run: dotnet test tests/Timeback.Integration.Tests -c Release --no-build
 
-  frontend:
-    runs-on: ubuntu-latest
-    defaults: { run: { working-directory: frontend } }
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: '22' }
-      - run: npm ci || npm install
-      - run: npm run test
-      - run: npm run build
+      - name: Unit + application tests (with coverage)
+        run: >
+          dotnet test Timeback.slnx -c Release --no-build
+          --filter "FullyQualifiedName!~Integration"
+          --collect:"XPlat Code Coverage"
+          --results-directory ./coverage/unit
+      - name: Integration tests (Testcontainers / Docker, with coverage)
+        run: >
+          dotnet test tests/Timeback.Integration.Tests -c Release --no-build
+          --collect:"XPlat Code Coverage"
+          --results-directory ./coverage/integration
+      - name: Upload backend coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: coverage/**/*.cobertura.xml
+          if-no-files-found: error
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci || npm install
+      - name: Frontend tests (with coverage)
+        working-directory: frontend
+        run: npm run test:coverage
+      - name: Frontend build
+        working-directory: frontend
+        run: npm run build
+      - name: Upload frontend coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/**
+          if-no-files-found: error
+
+      - name: SonarScanner end
+        run: dotnet sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
 
   docker:
     runs-on: ubuntu-latest
-    needs: [backend, frontend]
+    needs: [backend]
     steps:
       - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
       - run: docker build -t timeback-api:ci .
       - run: docker build -t timeback-web:ci ./frontend
