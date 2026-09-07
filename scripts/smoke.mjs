@@ -17,7 +17,7 @@ for (let n = 1; n <= 3; n++) {
   const res = await j(await fetch(`${B}/games/${gid}/rounds/${n}/submit`, {
     method: "POST", headers: H, body: JSON.stringify(alloc),
   }));
-  console.log(`R${n}: entry=${round.effectiveMarketDate} val=${round.assets ? "" : ""}${res.number ? "" : ""} score=${res.score} final=${Math.round(res.finalValue)} nominal=${(res.nominalReturnFraction*100).toFixed(0)}% real=${(res.realReturnFraction*100).toFixed(0)}% best=${res.bestPossibleSymbol} missed=${Math.round(res.missedGain)}`);
+  console.log(`R${n}: entry=${round.effectiveMarketDate} score=${res.score} final=${Math.round(res.finalValue)} nominal=${(res.nominalReturnFraction*100).toFixed(0)}% real=${(res.realReturnFraction*100).toFixed(0)}% best=${res.bestPossibleSymbol} missed=${Math.round(res.missedGain)}`);
 }
 
 const result = await j(await fetch(`${B}/games/${gid}/result`, { headers: H }));

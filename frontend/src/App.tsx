@@ -82,7 +82,7 @@ export function App() {
       )}
       {screen.k === "leaderboard" && (
         <LeaderboardScreen myNick={screen.myNick}
-          onBack={() => setScreen(screen.from === "final" ? { k: "landing" } : { k: "landing" })} />
+          onBack={() => setScreen({ k: "landing" })} />
       )}
 
       {error && <div className="toast">⚠ {error}</div>}

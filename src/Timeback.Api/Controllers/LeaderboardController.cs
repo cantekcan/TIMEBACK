@@ -4,7 +4,9 @@ using Timeback.Application.Leaderboard;
 
 namespace Timeback.Api.Controllers;
 
-public sealed record SaveLeaderboardRequest(Guid GameId, string Nickname);
+public sealed record SaveLeaderboardRequest(
+    [property: System.Text.Json.Serialization.JsonRequired] Guid GameId,
+    string Nickname);
 
 [ApiController]
 [Route("api/v1/leaderboard")]

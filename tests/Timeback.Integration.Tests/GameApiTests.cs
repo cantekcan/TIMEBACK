@@ -63,6 +63,16 @@ public sealed class GameApiTests(PostgresFixture fx)
     }
 
     [Fact]
+    public async Task Leaderboard_save_without_a_gameId_is_rejected_with_400()
+    {
+        // Guid is a value type - a client that omits "gameId" entirely must not silently bind to
+        // Guid.Empty and fall through to a confusing 404; JsonRequired makes this an explicit 400.
+        var client = NewClient();
+        var response = await client.PostAsJsonAsync("/api/v1/leaderboard", new { nickname = "NoGameId" });
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task Requests_without_the_session_token_are_404()
     {
         var client = NewClient();

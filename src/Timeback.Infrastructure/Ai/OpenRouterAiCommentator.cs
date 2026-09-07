@@ -128,7 +128,7 @@ public sealed class OpenRouterAiCommentator(
     /// <summary>Matches a numeric token the model might write: "31", "-31", "0.8", "0,8", "%25", "25%",
     /// "264.606" (Turkish thousands) or "264,606" (English thousands) - sign and percent sign optional
     /// on either side, digits with any mix of '.'/',' separators in between.</summary>
-    private static readonly Regex NumberToken = new(@"[-−]?%?\s?\d[\d.,]*%?", RegexOptions.Compiled);
+    private static readonly Regex NumberToken = new(@"[-−]?%?\s?\d[\d.,]*%?", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
     /// <summary>
     /// The only numbers the model is allowed to say: every value actually sent to it (scores, decision

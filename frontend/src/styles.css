@@ -107,8 +107,6 @@ button.lg { width: 100%; padding: 16px; font-size: 16px; }
 .ring { position: relative; width: 76px; height: 76px; flex: none; }
 .ring svg { transform: rotate(-90deg); }
 .ring track { stroke: var(--line); }
-.ring bar { stroke: var(--accent); stroke-linecap: round; transition: stroke-dashoffset 1s linear, stroke .3s; }
-.ring.low bar { stroke: var(--bad); }
 .ring .n { position: absolute; inset: 0; display: grid; place-items: center; font-size: 28px; font-weight: 800; }
 .ring.low .n { color: var(--bad); animation: pulse .5s ease-in-out infinite alternate; }
 @keyframes pulse { to { transform: scale(1.12); } }

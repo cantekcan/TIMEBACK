@@ -9,7 +9,7 @@ public readonly record struct Nickname
     public string Value { get; }
     private Nickname(string value) => Value = value;
 
-    private static readonly Regex Allowed = new(@"^[A-Za-z0-9_\-\.]{3,16}$", RegexOptions.Compiled);
+    private static readonly Regex Allowed = new(@"^[A-Za-z0-9_\-\.]{3,16}$", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
     public static Nickname Create(string? raw)
     {
