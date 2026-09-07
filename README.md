@@ -20,7 +20,7 @@ cheat-resistant game server.
 - [Round selection](#round-selection) · [Market data](#historical-market-data)
 - [Security](#security) · [Persistence & concurrency](#persistence--concurrency) · [AI](#ai-commentator)
 - [API](#api) · [Local development](#local-development) · [Docker](#docker) · [Testing](#testing)
-- [Limitations](#known-limitations)
+- [CI pipeline](#ci-pipeline) · [Limitations](#known-limitations)
 
 ## Gameplay
 
@@ -344,6 +344,15 @@ cd frontend && npm run test                                             # 10 (re
 | Application | 26 | full playthrough + leaderboard eligibility, **wrong token → 404**, **score cannot be forged**, result-before-finish → 409, late submit → auto-lock 0, duplicate submit, round-planner variety + determinism, AI fallback/parsing/model-capture, **8 invalid-response shapes → fallback**, excessively-long-reply → fallback |
 | Integration (real PG) | 10 | health, full game over HTTP + leaderboard, no-token → 404, bad allocation → 422, **concurrent submits: exactly 1 wins**, seeding loads real prices/CPI for every asset, **ingestion idempotency**, coverage never fakes a future date, stale forward-fill cleanup |
 | Frontend | 10 | rebalance always totals 100 / integers / proportional / even-split / clamping, AI model slug → display name + disclosure text |
+
+## CI pipeline
+
+GitHub Actions (`.github/workflows/ci.yml`) runs on every push/PR to `main` (and on demand via
+`workflow_dispatch`): backend restore/build, Domain + Application + Integration tests with Cobertura
+coverage, frontend tests with lcov coverage, frontend build, a Docker build-only check for both
+images, and a [SonarQube Cloud](https://sonarcloud.io/project/overview?id=cantekcan_TIMEBACK)
+analysis (project `cantekcan_TIMEBACK`) gated on its Quality Gate - a failed gate fails the pipeline.
+Backend and frontend coverage reports are uploaded as workflow artifacts on every run.
 
 ## Known limitations
 
