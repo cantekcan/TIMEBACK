@@ -24,7 +24,14 @@ builder.Services.AddOpenApi();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 
-var corsOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? ["http://localhost:5173"];
+// Read as an array so production can add the deployed frontend origin via env vars without touching
+// this file - e.g. on Render: Cors__Origins__0=https://<vercel-domain>.vercel.app (in addition to, or
+// instead of, the localhost default below). A browser's Origin header never has a trailing slash or
+// surrounding whitespace, but a pasted env var value easily does - CORS matches origins by exact string,
+// so a stray "/" here would silently fail every request while still returning 204 to the preflight.
+var corsOrigins = (builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? ["http://localhost:5173"])
+    .Select(o => o.Trim().TrimEnd('/'))
+    .ToArray();
 builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
     p.WithOrigins(corsOrigins).AllowAnyHeader().AllowAnyMethod()));
 
@@ -76,6 +83,8 @@ if (args.Length > 0 && args[0].Equals("ingest", StringComparison.OrdinalIgnoreCa
 app.UseExceptionHandler();
 app.UseForwardedHeaders();
 app.UseSerilogRequestLogging();
+
+app.Logger.LogInformation("CORS allowed origins: {Origins}", string.Join(", ", corsOrigins));
 
 if (app.Configuration.GetValue("Seed:OnStartup", true))
 {

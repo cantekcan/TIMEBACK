@@ -30,6 +30,24 @@ public sealed class GameApiTests(PostgresFixture fx)
         => (await NewClient().GetAsync("/health")).StatusCode.Should().Be(HttpStatusCode.OK);
 
     [Fact]
+    public async Task Cors_allows_the_configured_origin_and_rejects_others()
+    {
+        // The test host's Cors:Origins is the appsettings.json default (http://localhost:5173) - this
+        // exercises the real CORS middleware end to end, the same mechanism Cors__Origins__0 drives in
+        // production, rather than just unit-testing config parsing.
+        var allowed = NewClient();
+        allowed.DefaultRequestHeaders.Add("Origin", "http://localhost:5173");
+        var allowedResponse = await allowed.GetAsync("/health");
+        allowedResponse.Headers.TryGetValues("Access-Control-Allow-Origin", out var allowedValues).Should().BeTrue();
+        allowedValues!.Should().ContainSingle().Which.Should().Be("http://localhost:5173");
+
+        var disallowed = NewClient();
+        disallowed.DefaultRequestHeaders.Add("Origin", "https://evil.example.com");
+        var disallowedResponse = await disallowed.GetAsync("/health");
+        disallowedResponse.Headers.Contains("Access-Control-Allow-Origin").Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Play_a_full_game_and_land_on_the_leaderboard()
     {
         var client = NewClient();
