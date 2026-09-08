@@ -1,4 +1,5 @@
-const BASE = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:5080") + "/api/v1";
+const API_ORIGIN = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:5080";
+const BASE = API_ORIGIN + "/api/v1";
 
 export interface AssetView { symbol: string; displayName: string; assetClass: string; }
 export interface RoundView {
@@ -47,6 +48,12 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 export class ApiError extends Error {
   constructor(message: string, public readonly status: number) { super(message); }
 }
+
+/** Fire-and-forget ping to wake up a sleeping Render free-tier instance as early as possible - no
+ *  auth header, no retry, and its outcome is never checked. Not a guarantee against cold starts,
+ *  just a head start: the request lands the moment the app mounts, before the player has clicked
+ *  anything, instead of only starting when they hit "Oyuna Başla". */
+export const warmUpBackend = () => { void fetch(API_ORIGIN + "/health").catch(() => {}); };
 
 export const api = {
   startGame: () => req<StartGameResponse>("/games", { method: "POST" }),

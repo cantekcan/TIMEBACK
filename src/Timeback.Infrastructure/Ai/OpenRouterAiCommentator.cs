@@ -13,19 +13,26 @@ public sealed class OpenRouterOptions
 {
     public const string SectionName = "OpenRouter";
     public string ApiKey { get; set; } = "";
-    public string Model { get; set; } = "minimax/minimax-m3:free";
+    public string Model { get; set; } = "openrouter/free";
     public bool Enabled => !string.IsNullOrWhiteSpace(ApiKey);
 }
 
 /// <summary>
-/// Calls OpenRouter's free `minimax/minimax-m3:free` model directly (OpenAI-compatible Chat
-/// Completions API) for a one-line Turkish quip - never the `openrouter/free` auto-router, which was
-/// found to sometimes land on non-conversational free models (content-safety classifiers, code
-/// assistants) that return nonsense instead of a comment. The AI only *phrases* the already-computed
+/// Calls OpenRouter's `openrouter/free` Free Models Router (OpenAI-compatible Chat Completions API)
+/// for a one-line Turkish quip. The router picks a real free model per request and reports which one
+/// it used in the response body - a single fixed free model was tried before and dropped because it
+/// sometimes disappears from OpenRouter's free tier entirely (see the CORS/production-deploy history:
+/// `minimax/minimax-m3:free` started 404ing once OpenRouter stopped routing it), so the router is used
+/// instead to always land on *some* currently-available free model. That means the actual model - and
+/// its output quality - varies call to call, including occasionally landing on a non-conversational
+/// model (content-safety classifier, code assistant) that returns nonsense instead of a comment; the
+/// existing guards absorb exactly that risk: <see cref="LooksLikeInvalidComment"/> rejects responses
+/// that don't look like the requested roast, and <see cref="ContainsHallucinatedNumber"/> rejects any
+/// invented number regardless of which model wrote it. The AI only *phrases* the already-computed
 /// result - the prompt hands it finished numbers and forbids calculation. Any failure (no key,
 /// 401/403/429/5xx, timeout, empty response, bad JSON, or a response that doesn't look like a real
-/// comment - see <see cref="LooksLikeInvalidComment"/>) falls back to
-/// <see cref="FallbackAiCommentator"/>; this method never throws and never falls back to a paid model.
+/// comment) falls back to <see cref="FallbackAiCommentator"/>; this method never throws and never
+/// falls back to a paid model - the router only ever selects among free models.
 /// </summary>
 public sealed class OpenRouterAiCommentator(
     HttpClient http,

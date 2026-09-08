@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  api, ApiError, fmtPct, fmtTRY, setSessionToken,
+  api, ApiError, fmtPct, fmtTRY, setSessionToken, warmUpBackend,
   type GameResultView, type LeaderboardRow, type RoundResultView, type RoundView,
 } from "./api";
 import { clampWeight, evenSplit, rebalance, totalOf, type Weights } from "./allocation";
@@ -17,6 +17,11 @@ type Screen =
 export function App() {
   const [screen, setScreen] = useState<Screen>({ k: "landing" });
   const [error, setError] = useState<string | null>(null);
+
+  // Render's free tier sleeps when idle - ping it the moment the app opens so it's already waking
+  // up by the time the player taps "Oyuna Başla", instead of only starting cold on that first call.
+  useEffect(() => { warmUpBackend(); }, []);
+
   useEffect(() => {
     if (!error) return;
     const t = setTimeout(() => setError(null), 5000);

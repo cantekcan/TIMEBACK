@@ -192,7 +192,6 @@ public class AiCommentatorTests
 
         var body = await handler.LastRequestBody!;
         body.Should().Contain(MiniMaxModel);
-        body.Should().NotContain("openrouter/free");
         body.Should().Contain("1900/3000"); // the real score, not a made-up one
         body.Should().Contain("Round 3: BTC %60, 900 puan");
     }
