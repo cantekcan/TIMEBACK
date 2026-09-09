@@ -60,6 +60,16 @@ public sealed class Round : Entity
 
     public bool IsExpired(DateTime nowUtc) => EndsAtUtc is { } ends && nowUtc > ends;
 
+    /// <summary>Records the player's own deliberate allocation. A real, validated <see cref="AllocationSet"/>
+    /// is always honored here regardless of how late <paramref name="nowUtc"/> is relative to
+    /// <see cref="EndsAtUtc"/> - once the player has locked in a real choice, network/cold-start delay
+    /// must never turn it into "no investment" (an empty allocation can never reach here - it's rejected
+    /// earlier, in <see cref="AllocationSet.Create"/>). Lateness still costs the player their speed
+    /// bonus (<see cref="RoundScoring.ApplyTimeBonus"/> naturally clamps it to zero for a negative
+    /// remaining time below), it just never costs them the investment itself. The only remaining gate is
+    /// that the round must still be open (<see cref="RoundStatus.AwaitingSubmission"/>) - callers are
+    /// responsible for not having already let a deadline sweep auto-lock this exact round out from under
+    /// a real submission (see SubmitAllocationHandler's exclusion).</summary>
     internal void Submit(
         AllocationSet allocation,
         IReadOnlyDictionary<string, AssetQuote> quotes,
@@ -70,8 +80,6 @@ public sealed class Round : Entity
     {
         if (Status != RoundStatus.AwaitingSubmission)
             throw new DomainException($"Round {Number} is not accepting submissions.");
-        if (IsExpired(nowUtc))
-            throw new DomainException($"Round {Number} deadline has passed.");
 
         foreach (var line in allocation.Lines)
             _allocations.Add(new RoundAllocation(line.Symbol, line.Weight.Value));

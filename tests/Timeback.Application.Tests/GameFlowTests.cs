@@ -95,22 +95,77 @@ public class GameFlowTests
     }
 
     [Fact]
-    public async Task Late_submission_returns_the_auto_locked_zero_score_result_instead_of_an_error()
+    public async Task A_real_late_submission_is_persisted_and_scored_not_auto_locked()
     {
-        // A submit that arrives after the deadline (e.g. the request was in flight when the
-        // countdown hit zero) must never strand the player on an error screen - the round is
-        // simply resolved as an auto-lock, same as if nobody had submitted at all.
+        // A real, non-empty allocation that only reaches the server after its deadline (e.g. Render
+        // free-tier cold start, or any network delay) is the player's own deliberate "Kilitle" click -
+        // it must never be silently discarded/auto-locked out from under itself. It's still accepted,
+        // still scored on its actual investment merit; only the speed bonus is forfeited.
         var (id, token) = await StartGame();
         _clock.UtcNow = _clock.UtcNow.AddMinutes(1);
 
         var result = await Submit(id, token, 1, ("GOLD", 100));
 
+        result.AutoLocked.Should().BeFalse();
+        result.Assets.Should().ContainSingle(a => a.Symbol == "GOLD");
+        result.InvestmentScore.Should().BeGreaterThan(0);
+        result.TimeBonus.Should().Be(0); // late arrival costs the speed bonus, never the investment
+        result.Score.Should().Be(result.InvestmentScore);
+
+        var game = await _games.GetAsync(id, default);
+        var round = game!.RoundByNumber(1);
+        round.Status.Should().Be(RoundStatus.Locked);
+        round.Allocations.Should().ContainSingle(a => a.Symbol == "GOLD" && a.Weight == 100);
+    }
+
+    [Fact]
+    public async Task Empty_allocation_still_auto_locks_with_zero_score_when_the_player_never_clicked_lock()
+    {
+        // The client's own "time ran out, nothing was chosen" signal (an empty allocation) must still
+        // resolve exactly as before - this is the one case the deadline sweep is still allowed to claim.
+        var (id, token) = await StartGame();
+        _clock.UtcNow = _clock.UtcNow.AddMinutes(1);
+
+        var result = await Submit(id, token, 1);
+
         result.AutoLocked.Should().BeTrue();
         result.Score.Should().Be(0);
+        result.InvestmentScore.Should().Be(0);
+        result.TimeBonus.Should().Be(0);
         result.Assets.Should().BeEmpty(); // no synthetic "cash" line, no allocation at all
 
         var game = await _games.GetAsync(id, default);
-        game!.RoundByNumber(1).Status.Should().Be(RoundStatus.Locked);
+        var round = game!.RoundByNumber(1);
+        round.Status.Should().Be(RoundStatus.Locked);
+        round.Allocations.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task On_time_submission_behavior_is_unchanged_by_the_late_submission_fix()
+    {
+        // Guards against a regression in the common case: a normal, on-time "Kilitle" click must keep
+        // earning its full time bonus exactly as before.
+        var (id, token) = await StartGame(); // FixedClock never advances between Begin and Submit here
+
+        var result = await Submit(id, token, 1, ("GOLD", 100));
+
+        result.AutoLocked.Should().BeFalse();
+        result.TimeBonus.Should().Be(RoundScoring.MaxTimeBonus);
+        result.Score.Should().Be(RoundScoring.MaxRoundScore); // GOLD was the best pick this round
+    }
+
+    [Fact]
+    public async Task A_real_late_submission_is_idempotent_on_retry()
+    {
+        // A retried duplicate of the same late-but-real submission (e.g. the client resending after a
+        // dropped response) must return the identical already-locked result, never re-score the round.
+        var (id, token) = await StartGame();
+        _clock.UtcNow = _clock.UtcNow.AddMinutes(1);
+
+        var first = await Submit(id, token, 1, ("GOLD", 100));
+        var second = await Submit(id, token, 1, ("BTC", 100)); // different payload - must be ignored
+
+        second.Should().BeEquivalentTo(first);
     }
 
     [Fact]

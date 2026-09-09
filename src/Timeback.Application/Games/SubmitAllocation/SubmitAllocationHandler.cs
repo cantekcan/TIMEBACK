@@ -24,7 +24,13 @@ public sealed class SubmitAllocationHandler(
         if (game is null || string.IsNullOrWhiteSpace(request.GameToken) || !game.MatchesToken(tokens.HashOf(request.GameToken)))
             throw new NotFoundException($"Game {request.GameId} not found.");
 
-        await play.EnforceDeadlinesAsync(game, ct);
+        // A request carrying a real (non-empty) allocation is the player's own deliberate "Kilitle"
+        // click - it must never be auto-locked out from under itself just because network/cold-start
+        // delay let this exact request arrive after the server's deadline. Only an empty allocation
+        // (the client's own "time ran out, nothing was chosen" signal) lets the normal deadline sweep
+        // claim this round; a real one is handled below regardless of how late it arrived.
+        var isRealSubmission = request.Allocations.Count > 0;
+        await play.EnforceDeadlinesAsync(game, ct, excludeRoundNumber: isRealSubmission ? request.RoundNumber : null);
 
         var round = game.RoundByNumber(request.RoundNumber);
 

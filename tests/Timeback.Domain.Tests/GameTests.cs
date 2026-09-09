@@ -51,15 +51,23 @@ public class GameTests
     }
 
     [Fact]
-    public void Submission_after_the_deadline_is_rejected()
+    public void A_real_late_submission_is_still_accepted_but_earns_no_time_bonus()
     {
+        // A genuinely late request (e.g. network/cold-start delay) must never turn a player's real,
+        // deliberate "Kilitle" click into a lost investment - only the speed bonus is forfeited.
         var now = new DateTime(2024, 1, 1, 12, 0, 0, DateTimeKind.Utc);
         var game = NewGame(now);
         game.BeginCurrentRound(now);
 
-        var act = () => game.SubmitRound(1, Alloc(50, 50), Quotes(), 100, 100, now.AddSeconds(30));
+        game.SubmitRound(1, Alloc(50, 50), Quotes(), 100, 100, now.AddSeconds(30));
 
-        act.Should().Throw<DomainException>().WithMessage("*deadline*");
+        var r = game.RoundByNumber(1);
+        r.Status.Should().Be(RoundStatus.Locked);
+        r.AutoLocked.Should().BeFalse();
+        r.Allocations.Should().NotBeEmpty();
+        r.Result!.TimeBonus.Should().Be(0);
+        r.Result!.InvestmentScore.Should().BeGreaterThan(0); // 50/50 GOLD/BTC lands between the worst
+        // (BTC-only) and best (GOLD-only) outcomes for this round's quotes - a genuine, positive score.
     }
 
     [Fact]
