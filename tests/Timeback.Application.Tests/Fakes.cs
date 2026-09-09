@@ -52,8 +52,8 @@ public sealed class FakeMarketDataStore : IMarketDataStore
 
     public Task<IReadOnlyList<Asset>> GetActiveAssetsAsync(CancellationToken ct) =>
         Task.FromResult<IReadOnlyList<Asset>>([
-            new Asset("GOLD", "Altin", AssetClass.Commodity, "TRY"),
-            new Asset("BTC", "Bitcoin", AssetClass.Crypto, "TRY"),
+            new Asset("GOLD", "Altin", AssetClass.Commodity),
+            new Asset("BTC", "Bitcoin", AssetClass.Crypto),
         ]);
 
     public Task<IReadOnlyDictionary<string, IReadOnlyList<PricePoint>>> GetPriceSeriesAsync(CancellationToken ct)

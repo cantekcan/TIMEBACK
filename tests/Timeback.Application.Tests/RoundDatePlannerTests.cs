@@ -33,7 +33,7 @@ public class RoundDatePlannerTests
 
         public Task<IReadOnlyList<Asset>> GetActiveAssetsAsync(CancellationToken ct) =>
             Task.FromResult<IReadOnlyList<Asset>>(S.Keys.Select(k =>
-                new Asset(k, k, AssetClass.Crypto, "TRY")).ToList());
+                new Asset(k, k, AssetClass.Crypto)).ToList());
 
         public Task<IReadOnlyDictionary<string, IReadOnlyList<PricePoint>>> GetPriceSeriesAsync(CancellationToken ct)
             => Task.FromResult<IReadOnlyDictionary<string, IReadOnlyList<PricePoint>>>(S);

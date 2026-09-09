@@ -15,7 +15,6 @@ internal sealed class AssetConfig : IEntityTypeConfiguration<Asset>
         e.Property(x => x.Symbol).HasMaxLength(16).IsRequired();
         e.HasIndex(x => x.Symbol).IsUnique();
         e.Property(x => x.DisplayName).HasMaxLength(64).IsRequired();
-        e.Property(x => x.QuoteCurrency).HasMaxLength(3).IsRequired();
         e.Property(x => x.Class).HasConversion<string>().HasMaxLength(16);
     }
 }

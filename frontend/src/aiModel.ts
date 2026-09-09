@@ -30,5 +30,5 @@ export function aiModelDisplayName(slug: string | null | undefined): string | nu
 /** The small, low-contrast disclosure line shown under the AI comment. */
 export function aiDisclosureText(slug: string | null | undefined): string {
   const name = aiModelDisplayName(slug);
-  return name ? `🤖 ${name} tarafından oluşturuldu` : "🤖 Yapay zekâ tarafından oluşturuldu";
+  return name ? `🤖 ${name} tarafından oluşturuldu` : "⚙️ Yerleşik yorum";
 }

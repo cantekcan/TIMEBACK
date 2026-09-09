@@ -55,7 +55,7 @@ public sealed class Game : AggregateRoot
         GameTokenHash = gameTokenHash;
     }
 
-    /// <summary>Creates a game with all five rounds' dates pre-resolved (rounds still <see cref="RoundStatus.Pending"/>).</summary>
+    /// <summary>Creates a game with all three rounds' dates pre-resolved (rounds still <see cref="RoundStatus.Pending"/>).</summary>
     public static Game Start(DateTime nowUtc, string gameTokenHash, IReadOnlyList<RoundDates> roundDates)
     {
         if (string.IsNullOrWhiteSpace(gameTokenHash))

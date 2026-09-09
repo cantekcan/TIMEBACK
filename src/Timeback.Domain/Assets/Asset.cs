@@ -19,19 +19,17 @@ public sealed class Asset : AggregateRoot
     public string Symbol { get; private set; } = null!;
     public string DisplayName { get; private set; } = null!;
     public AssetClass Class { get; private set; }
-    public string QuoteCurrency { get; private set; } = "TRY";
     public bool IsActive { get; private set; }
 
     private Asset() { } // EF
 
-    public Asset(string symbol, string displayName, AssetClass @class, string quoteCurrency)
+    public Asset(string symbol, string displayName, AssetClass @class)
     {
         if (string.IsNullOrWhiteSpace(symbol)) throw new DomainException("Asset symbol is required.");
         if (string.IsNullOrWhiteSpace(displayName)) throw new DomainException("Asset display name is required.");
         Symbol = symbol.ToUpperInvariant();
         DisplayName = displayName;
         Class = @class;
-        QuoteCurrency = string.IsNullOrWhiteSpace(quoteCurrency) ? "TRY" : quoteCurrency.ToUpperInvariant();
         IsActive = true;
     }
 

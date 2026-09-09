@@ -24,6 +24,6 @@ describe("aiDisclosureText", () => {
   });
 
   it("falls back to a generic line when no model was captured (e.g. the local fallback ran)", () => {
-    expect(aiDisclosureText(null)).toBe("🤖 Yapay zekâ tarafından oluşturuldu");
+    expect(aiDisclosureText(null)).toBe("⚙️ Yerleşik yorum");
   });
 });

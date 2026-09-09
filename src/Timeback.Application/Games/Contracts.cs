@@ -13,11 +13,8 @@ public sealed record RoundView(
     int Number,
     int TotalRounds,
     string RequestedDate,
-    string EffectiveMarketDate,
-    string Status,
     decimal StartingCapital,
     string? StartedAtUtc,
-    string? EndsAtUtc,
     int SelectionWindowSeconds,
     int HoldingPeriodYears,
     IReadOnlyList<AssetView> Assets);
@@ -25,7 +22,7 @@ public sealed record RoundView(
 public sealed record StartGameResponse(Guid GameId, string GameToken, RoundView CurrentRound);
 
 public sealed record AssetResultView(
-    string Symbol, decimal Invested, decimal FinalValue, decimal GrowthFactor, decimal ReturnFraction);
+    string Symbol, decimal GrowthFactor, decimal ReturnFraction);
 
 public sealed record RoundResultView(
     int Number,
@@ -62,11 +59,8 @@ internal static class ViewMapping
         r.Number,
         Domain.Scoring.RoundScoring.TotalRounds,
         r.RequestedDate.ToString(DateFmt),
-        r.EffectiveMarketDate.ToString(DateFmt),
-        r.Status.ToString(),
         Game.StartingCapitalAmount,
         r.StartedAtUtc?.ToString("O"),
-        r.EndsAtUtc?.ToString("O"),
         (int)Game.SelectionWindow.TotalSeconds,
         r.ValuationDate.Year - r.EffectiveMarketDate.Year, // both are the 1st of their month; AddYears(h) keeps entry's month, so this is exactly h
         assets.Select(ToView).ToList());
@@ -80,7 +74,7 @@ internal static class ViewMapping
             res.NominalReturnFraction, res.RealReturnFraction, res.InflationFraction,
             res.BestPossibleValue, res.BestPossibleSymbol, res.WorstPossibleValue, res.MissedGain, res.Score,
             res.Assets.Select(a => new AssetResultView(
-                a.Symbol, a.Invested, a.FinalValue, a.GrowthFactor, a.GrowthFactor - 1m)).ToList());
+                a.Symbol, a.GrowthFactor, a.GrowthFactor - 1m)).ToList());
     }
 
     public static GameResultView ToResultView(this Game g, bool onLeaderboard) => new(

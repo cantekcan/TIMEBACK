@@ -14,7 +14,7 @@ public enum RoundStatus
     Locked = 2
 }
 
-/// <summary>One of the five rounds of a game. Owned by the <see cref="Game"/> aggregate root.</summary>
+/// <summary>One of the three rounds of a game. Owned by the <see cref="Game"/> aggregate root.</summary>
 public sealed class Round : Entity
 {
     public Guid GameId { get; private set; }

@@ -65,8 +65,8 @@ describe("Backend warm-up", () => {
 
 describe("Round timer and locking", () => {
   const round: RoundView = {
-    number: 1, totalRounds: 3, requestedDate: "2020-01-01", effectiveMarketDate: "2020-01-01",
-    status: "AwaitingSubmission", startingCapital: 100_000, startedAtUtc: null, endsAtUtc: null,
+    number: 1, totalRounds: 3, requestedDate: "2020-01-01",
+    startingCapital: 100_000, startedAtUtc: null,
     // A short real window (not the production 15s) so the timeout test doesn't need to wait that
     // long - selectionWindowSeconds is just a prop RoundScreen reads, never hardcoded on the client.
     selectionWindowSeconds: 1, holdingPeriodYears: 2,
@@ -109,8 +109,8 @@ describe("Round timer and locking", () => {
     const submitSpy = vi.spyOn(api, "submit").mockResolvedValue({
       ...autoLockedResult, autoLocked: false, score: 500,
       assets: [
-        { symbol: "GOLD", invested: 50_000, finalValue: 55_000, growthFactor: 1.1, returnFraction: 0.1 },
-        { symbol: "BTC", invested: 50_000, finalValue: 60_000, growthFactor: 1.2, returnFraction: 0.2 },
+        { symbol: "GOLD", growthFactor: 1.1, returnFraction: 0.1 },
+        { symbol: "BTC", growthFactor: 1.2, returnFraction: 0.2 },
       ],
     });
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 200 })));

@@ -37,20 +37,22 @@ public sealed class RoundResult
             Score = o.Score
         };
         foreach (var a in o.AssetOutcomes)
-            r._assets.Add(new RoundAssetResult(a.Symbol, a.Invested.Amount, a.FinalValue.Amount, a.GrowthFactor));
+            r._assets.Add(new RoundAssetResult(a.Symbol, a.GrowthFactor));
         return r;
     }
 }
 
+/// <summary>Per-asset outcome as persisted/exposed - just enough to render "this asset moved X%".
+/// The domain's own scoring math (<see cref="Scoring.AssetOutcome"/>) still carries the full
+/// invested/final Money values internally; only the two fields nothing downstream ever read
+/// (invested amount, final value) were dropped from what gets stored here.</summary>
 public sealed class RoundAssetResult
 {
     public string Symbol { get; private set; } = null!;
-    public decimal Invested { get; private set; }
-    public decimal FinalValue { get; private set; }
     public decimal GrowthFactor { get; private set; }
     private RoundAssetResult() { }
-    public RoundAssetResult(string symbol, decimal invested, decimal finalValue, decimal growthFactor)
+    public RoundAssetResult(string symbol, decimal growthFactor)
     {
-        Symbol = symbol; Invested = invested; FinalValue = finalValue; GrowthFactor = growthFactor;
+        Symbol = symbol; GrowthFactor = growthFactor;
     }
 }

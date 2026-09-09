@@ -91,6 +91,15 @@ export function App() {
       )}
 
       {error && <div className="toast">⚠ {error}</div>}
+
+      <p className="data-note">
+        Veri kaynakları: Yahoo Finance · FRED
+        <br />
+        Tarihsel veriler üzerinden hazırlanmış bir simülasyondur. Yatırım tavsiyesi değildir.
+        <br />
+        Built by Can Tekcan ·{" "}
+        <a href="https://github.com/cantekcan/TIMEBACK" target="_blank" rel="noopener noreferrer">GitHub</a>
+      </p>
     </div>
   );
 }
@@ -115,7 +124,6 @@ function Landing({ onStart, onLeaderboard }: { onStart: () => void; onLeaderboar
   return (
     <div className="card">
       <div className="hero">
-        <div className="kicker">Historical Investing Game</div>
         <div className="big-q">"Geçmişe dönseydin paranı nereye yatırırdın?"</div>
         <p className="muted">Rastgele bir tarih. 100.000 TL. 15 saniye. 3 tur.</p>
       </div>
@@ -353,7 +361,7 @@ function RoundResultScreen({ round, result, onNext }: { round: RoundView; result
         </div>
         <div className="perf-row">
           <div className="perf-top"><span>Reel getiri</span><b className={result.realReturnFraction >= 0 ? "pos" : "neg"}>{fmtPct(result.realReturnFraction)}</b></div>
-          <p className="explain">Enflasyonun etkisi hesaba katıldığında paranın gerçek alım gücü {fmtPct(result.realReturnFraction)} değişti. Nominal ile karıştırma: {fmtTRY(result.finalValue)}'nin bir bölümü değil, "bugünün parasıyla ne kadar zengin oldun" sorusunun cevabı budur.</p>
+          <p className="explain">Reel getiri, enflasyonun etkisi çıkarıldıktan sonra paranın alım gücündeki değişimi gösterir. Nominal getirin {fmtPct(result.nominalReturnFraction)}, enflasyon {fmtPct(result.inflationFraction)} olduğu için reel getirin yaklaşık {fmtPct(result.realReturnFraction)}.</p>
         </div>
       </div>
 
@@ -465,11 +473,6 @@ function FinalScreen({ result, onSaved, onLeaderboard, onReplay, onError }: {
         <button className="ghost" onClick={onLeaderboard}>🏆 Leaderboard</button>
         <button onClick={onReplay}>TEKRAR OYNA</button>
       </div>
-
-      <p className="data-note">
-        Bu simülasyon gerçek tarihsel piyasa verileri kullanır: Bitcoin, BIST 100, altın ve S&amp;P 500
-        için tarihsel fiyatlar; enflasyon için tarihsel TÜFE verileri.
-      </p>
     </div>
   );
 }

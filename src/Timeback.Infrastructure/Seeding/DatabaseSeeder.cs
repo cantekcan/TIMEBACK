@@ -51,7 +51,7 @@ public sealed class DatabaseSeeder(
                 }
                 continue;
             }
-            db.Assets.Add(new Asset(spec.Symbol, spec.DisplayName, spec.Class, "TRY"));
+            db.Assets.Add(new Asset(spec.Symbol, spec.DisplayName, spec.Class));
             inserted++;
         }
 

@@ -3,13 +3,13 @@ const BASE = API_ORIGIN + "/api/v1";
 
 export interface AssetView { symbol: string; displayName: string; assetClass: string; }
 export interface RoundView {
-  number: number; totalRounds: number; requestedDate: string; effectiveMarketDate: string; status: string;
-  startingCapital: number; startedAtUtc: string | null; endsAtUtc: string | null;
+  number: number; totalRounds: number; requestedDate: string;
+  startingCapital: number; startedAtUtc: string | null;
   selectionWindowSeconds: number; holdingPeriodYears: number; assets: AssetView[];
 }
 export interface StartGameResponse { gameId: string; gameToken: string; currentRound: RoundView; }
 export interface AssetResultView {
-  symbol: string; invested: number; finalValue: number; growthFactor: number; returnFraction: number;
+  symbol: string; growthFactor: number; returnFraction: number;
 }
 export interface RoundResultView {
   number: number; autoLocked: boolean; startingCapital: number; finalValue: number;
