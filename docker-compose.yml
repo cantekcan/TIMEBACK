@@ -21,7 +21,7 @@ services:
     environment:
       ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=timeback;Username=timeback;Password=timeback"
       Cors__Origins__0: "http://localhost:5173"
-      OpenRouter__ApiKey: "${OPENROUTER_API_KEY:-}"
+      Gemini__ApiKey: "${GEMINI_API_KEY:-}"
     ports: ["8080:8080"]
 
   frontend:

@@ -1,5 +1,7 @@
-/** Turns a raw OpenRouter model slug into a short, readable name for the player - never the router's
- *  own name ("openrouter/free"), always the real model that answered, taken from the response body. */
+/** Turns a raw AI model slug into a short, readable name for the player - the real model that
+ *  answered (e.g. "gemini-3.5-flash-lite" or, on fallback, "gemini-3.1-flash-lite"), taken from
+ *  the response body. Kept vendor-agnostic (the lookup table below covers more than just Gemini)
+ *  since this same field carried OpenRouter model slugs before the AI provider changed. */
 const VENDOR_NAME: Record<string, string> = {
   minimax: "MiniMax", gemma: "Gemma", google: "Google", gpt: "GPT", llama: "Llama",
   qwen: "Qwen", deepseek: "DeepSeek", mistral: "Mistral", phi: "Phi", claude: "Claude",

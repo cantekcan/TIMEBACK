@@ -68,7 +68,7 @@ public sealed class GameApiTests(PostgresFixture fx)
         result!.Status.Should().Be("Completed");
         result.FinalScore.Should().BeInRange(0, 3000);
         result.AiCommentary.Should().NotBeNullOrWhiteSpace();
-        // No real OpenRouter key is configured for this test host, so the fallback commentator must
+        // No real Gemini key is configured for this test host, so the fallback commentator must
         // have produced the comment - and it never reports a model of its own.
         result.AiModel.Should().BeNull();
 

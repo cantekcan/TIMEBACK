@@ -54,10 +54,10 @@ public static class DependencyInjection
         services.AddScoped<DatabaseSeeder>();
 
         // --- AI -------------------------------------------------------------------------------
-        services.Configure<OpenRouterOptions>(config.GetSection(OpenRouterOptions.SectionName));
+        services.Configure<GeminiOptions>(config.GetSection(GeminiOptions.SectionName));
         services.AddSingleton<FallbackAiCommentator>();
-        services.AddHttpClient<IAiCommentator, OpenRouterAiCommentator>(c =>
-            c.BaseAddress = new Uri("https://openrouter.ai"));
+        services.AddHttpClient<IAiCommentator, GeminiAiCommentator>(c =>
+            c.BaseAddress = new Uri("https://generativelanguage.googleapis.com"));
 
         return services;
     }

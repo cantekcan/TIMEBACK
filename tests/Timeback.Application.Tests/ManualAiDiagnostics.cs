@@ -10,30 +10,30 @@ using Xunit.Abstractions;
 namespace Timeback.Application.Tests;
 
 /// <summary>
-/// Manual/diagnostic only - NOT part of the automated suite. Makes real network calls to OpenRouter's
-/// live minimax/minimax-m3:free endpoint using a real key read from the OPENROUTER_API_KEY environment
-/// variable (never hardcoded, never logged) and prints the actual roasts for human review. Skipped by
-/// default so `dotnet test` never depends on network access or burns real API quota.
+/// Manual/diagnostic only - NOT part of the automated suite. Makes real network calls to Gemini's live
+/// API using a real key read from the GEMINI_API_KEY environment variable (never hardcoded, never
+/// logged) and prints the actual roasts for human review. Skipped by default so `dotnet test` never
+/// depends on network access or burns real API quota.
 ///
 /// To run it: temporarily delete the Skip reason below, then
-///   OPENROUTER_API_KEY=... dotnet test --filter FullyQualifiedName~ManualAiDiagnostics -v n
+///   GEMINI_API_KEY=... dotnet test --filter FullyQualifiedName~ManualAiDiagnostics -v n
 /// (the `-v n` verbosity is what makes xUnit print ITestOutputHelper output to the console).
 /// </summary>
 public class ManualAiDiagnostics(ITestOutputHelper output)
 {
     private static readonly string[] Assets = ["GOLD", "BIST100", "BTC", "SP500"];
 
-    [Fact(Skip = "Manual diagnostic only - hits the real OpenRouter/MiniMax API. Delete this Skip to run explicitly.")]
-    public async Task Five_real_minimax_roasts_across_varied_game_shapes()
+    [Fact(Skip = "Manual diagnostic only - hits the real Gemini API. Delete this Skip to run explicitly.")]
+    public async Task Five_real_gemini_roasts_across_varied_game_shapes()
     {
-        var apiKey = Environment.GetEnvironmentVariable("OPENROUTER_API_KEY");
-        apiKey.Should().NotBeNullOrWhiteSpace("set OPENROUTER_API_KEY to run this diagnostic");
+        var apiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
+        apiKey.Should().NotBeNullOrWhiteSpace("set GEMINI_API_KEY to run this diagnostic");
 
-        var commentator = new OpenRouterAiCommentator(
-            new HttpClient { BaseAddress = new Uri("https://openrouter.ai") },
-            Options.Create(new OpenRouterOptions { ApiKey = apiKey!, Model = "minimax/minimax-m3:free" }),
+        var commentator = new GeminiAiCommentator(
+            new HttpClient { BaseAddress = new Uri("https://generativelanguage.googleapis.com") },
+            Options.Create(new GeminiOptions { ApiKey = apiKey!, PrimaryModel = "gemini-3.5-flash-lite", FallbackModel = "gemini-3.1-flash-lite" }),
             new FallbackAiCommentator(),
-            new TestOutputLogger<OpenRouterAiCommentator>(output));
+            new TestOutputLogger<GeminiAiCommentator>(output));
 
         var scenarios = new (string Name, GameSummaryForAi Summary)[]
         {

@@ -33,8 +33,9 @@ public sealed class Game : AggregateRoot
     public DateTime? CompletedAtUtc { get; private set; }
     public int? FinalScore { get; private set; }
     public string? AiCommentary { get; private set; }
-    /// <summary>The OpenRouter model slug that actually generated <see cref="AiCommentary"/> (e.g.
-    /// "minimax/minimax-m2.7:free"), or null when the fallback commentator produced it.</summary>
+    /// <summary>The Gemini model that actually generated <see cref="AiCommentary"/> (e.g.
+    /// "gemini-3.5-flash-lite" or, on fallback, "gemini-3.1-flash-lite"), or null when the
+    /// deterministic commentator produced it.</summary>
     public string? AiModel { get; private set; }
 
     private readonly List<Round> _rounds = [];

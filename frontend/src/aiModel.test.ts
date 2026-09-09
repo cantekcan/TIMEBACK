@@ -7,6 +7,11 @@ describe("aiModelDisplayName", () => {
     expect(aiModelDisplayName("google/gemma-4-26b-a4b-it:free")).toBe("Gemma 4 26B");
   });
 
+  it("handles a plain Gemini model name (no vendor prefix or :tag)", () => {
+    expect(aiModelDisplayName("gemini-3.5-flash-lite")).toBe("Gemini 3.5 Flash Lite");
+    expect(aiModelDisplayName("gemini-3.1-flash-lite")).toBe("Gemini 3.1 Flash Lite");
+  });
+
   it("never returns the router's own name", () => {
     expect(aiModelDisplayName(null)).toBeNull();
     expect(aiModelDisplayName(undefined)).toBeNull();
