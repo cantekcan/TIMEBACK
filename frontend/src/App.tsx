@@ -117,11 +117,11 @@ function Landing({ onStart, onLeaderboard }: { onStart: () => void; onLeaderboar
       <div className="hero">
         <div className="kicker">Historical Investing Game</div>
         <div className="big-q">"Geçmişe dönseydin paranı nereye yatırırdın?"</div>
-        <p className="muted">Rastgele bir tarih. 100.000 TL. 10 saniye. 3 tur.</p>
+        <p className="muted">Rastgele bir tarih. 100.000 TL. 15 saniye. 3 tur.</p>
       </div>
       <div className="steps">
         <div className="step"><div className="n">1</div><small>Geçmişten bir tarih ve 100.000 TL alırsın</small></div>
-        <div className="step"><div className="n">2</div><small>10 saniyede altın, borsa ve kripto arasında dağıt</small></div>
+        <div className="step"><div className="n">2</div><small>15 saniyede altın, borsa ve kripto arasında dağıt</small></div>
         <div className="step"><div className="n">3</div><small>Zaman ilerler — nominal ve reel getirini gör</small></div>
       </div>
       <div className="time-info">
@@ -192,12 +192,12 @@ function RoundScreen({ gameId, round, onLocked, onError }: {
 
   // The visible countdown is exactly the decision window - the server keeps a couple of extra
   // seconds of slack on top of this for network latency, but that slack is never shown to the
-  // player as "more time", otherwise the auto-submit would fire with no time left for its own
-  // request to actually reach the server.
+  // player as "more time", otherwise a genuinely-on-time click would have no time left for its
+  // own request to actually reach the server.
   //
   // The deadline is anchored to when this screen actually mounts in the browser, not to the
   // server's round.startedAtUtc - the player never sees the network/render time between the
-  // server starting the round and the screen appearing eaten out of their 10 seconds. The
+  // server starting the round and the screen appearing eaten out of their 15 seconds. The
   // server still enforces its own authoritative deadline off startedAtUtc independently, so a
   // late submit is rejected there regardless of what the client shows.
   const totalMs = round.selectionWindowSeconds * 1000;
@@ -207,14 +207,14 @@ function RoundScreen({ gameId, round, onLocked, onError }: {
   const locking = useRef(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const submit = useCallback(async () => {
+  // A slider position is only ever a real investment once the player presses "Kilitle" - this is
+  // the one function that actually calls the API, and it always sends exactly the allocation it's
+  // given, never reaching back into live slider state itself.
+  const submit = useCallback(async (allocations: { symbol: string; weight: number }[]) => {
     if (locking.current) return;
     locking.current = true;
     setSubmitting(true);
     try {
-      const allocations = symbols.map((s) => ({ symbol: s, weight: weights[s] ?? 0 }));
-      const sum = allocations.reduce((a, x) => a + x.weight, 0);
-      if (sum !== 100 && allocations.length) allocations[0].weight += 100 - sum;
       onLocked(await api.submit(gameId, round.number, allocations));
     } catch (e) {
       // Never strand the player here: re-enable the button so a tap retries. The backend treats a
@@ -223,13 +223,25 @@ function RoundScreen({ gameId, round, onLocked, onError }: {
       locking.current = false;
       setSubmitting(false);
     }
-  }, [gameId, round.number, symbols, weights, onLocked, onError]);
+  }, [gameId, round.number, onLocked, onError]);
+
+  const submitSelection = useCallback(() => {
+    const allocations = symbols.map((s) => ({ symbol: s, weight: weights[s] ?? 0 }));
+    const sum = allocations.reduce((a, x) => a + x.weight, 0);
+    if (sum !== 100 && allocations.length) allocations[0].weight += 100 - sum;
+    return submit(allocations);
+  }, [symbols, weights, submit]);
 
   useEffect(() => {
     const t = setInterval(() => {
       const n = Date.now();
       setNow(n);
-      if (deadline - n <= 0) { clearInterval(t); void submit(); }
+      // Time's up with no "Kilitle" click: whatever was still on the sliders was never confirmed,
+      // so it was never an investment - send an empty allocation rather than the live slider
+      // values. The server resolves this as "no investment, score 0" instead of quietly locking in
+      // a selection the player never actually committed to. (If a manual click is already in
+      // flight, `locking` makes this a no-op - it never overrides a real, on-time submission.)
+      if (deadline - n <= 0) { clearInterval(t); void submit([]); }
     }, 100);
     return () => clearInterval(t);
   }, [deadline, submit]);
@@ -286,7 +298,7 @@ function RoundScreen({ gameId, round, onLocked, onError }: {
           <div className="meter"><i style={{ width: `${Math.min(100, total)}%` }} /></div>
         </div>
 
-        <button className="lg" style={{ marginTop: 10 }} onClick={() => void submit()} disabled={submitting}>
+        <button className="lg" style={{ marginTop: 10 }} onClick={() => void submitSelection()} disabled={submitting}>
           {submitting ? "KİLİTLENİYOR…" : secs <= 0 ? "SÜRE DOLDU - KİLİTLE" : "YATIRIMI KİLİTLE"}
         </button>
       </div>
@@ -318,7 +330,7 @@ function RoundResultScreen({ round, result, onNext }: { round: RoundView; result
       <h3>Paran ne oldu?</h3>
       <p className="explain" style={{ marginBottom: 8 }}>{round.holdingPeriodYears} yıllık yatırımının sonunda:</p>
       <div className="result-hero">
-        {result.autoLocked && <p className="explain" style={{ color: "var(--bad)" }}>Süre doldu, paran nakitte kaldı.</p>}
+        {result.autoLocked && <p className="explain" style={{ color: "var(--bad)" }}>Süre doldu, yatırım kaydedilmedi.</p>}
         <div className="hero-row">
           <span className="from num">{fmtTRY(result.startingCapital)}</span>
           <span className="arrow">→</span>
@@ -357,20 +369,24 @@ function RoundResultScreen({ round, result, onNext }: { round: RoundView; result
         </p>
       </div>
 
-      <h3>Varlık bazında</h3>
-      <div className="assets-mini">
-        {[...result.assets].sort((a, b) => b.growthFactor - a.growthFactor).map((a) => {
-          const pos = a.returnFraction >= 0;
-          const mag = Math.min(100, Math.abs(a.returnFraction) * 40 + 6);
-          return (
-            <div className="am" key={a.symbol}>
-              <span>{a.symbol}</span>
-              <span className="track"><i style={{ width: `${mag}%`, background: pos ? "var(--good)" : "var(--bad)" }} /></span>
-              <span className="r" style={{ color: pos ? "var(--good)" : "var(--bad)" }}>{fmtPct(a.returnFraction)}</span>
-            </div>
-          );
-        })}
-      </div>
+      {result.assets.length > 0 && (
+        <>
+          <h3>Varlık bazında</h3>
+          <div className="assets-mini">
+            {[...result.assets].sort((a, b) => b.growthFactor - a.growthFactor).map((a) => {
+              const pos = a.returnFraction >= 0;
+              const mag = Math.min(100, Math.abs(a.returnFraction) * 40 + 6);
+              return (
+                <div className="am" key={a.symbol}>
+                  <span>{a.symbol}</span>
+                  <span className="track"><i style={{ width: `${mag}%`, background: pos ? "var(--good)" : "var(--bad)" }} /></span>
+                  <span className="r" style={{ color: pos ? "var(--good)" : "var(--bad)" }}>{fmtPct(a.returnFraction)}</span>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
 
       <h3>Tur skoru</h3>
       <div className="score-box">

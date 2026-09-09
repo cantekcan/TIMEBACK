@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App } from "./App";
-import { api } from "./api";
+import { api, type RoundResultView, type RoundView, type StartGameResponse } from "./api";
 
 afterEach(() => {
   cleanup();
@@ -60,5 +60,73 @@ describe("Backend warm-up", () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(screen.getByRole("button", { name: "OYUNA BAŞLA" })).toBeTruthy();
     expect(screen.queryByText(/hata|başarısız/i)).toBeNull();
+  });
+});
+
+describe("Round timer and locking", () => {
+  const round: RoundView = {
+    number: 1, totalRounds: 3, requestedDate: "2020-01-01", effectiveMarketDate: "2020-01-01",
+    status: "AwaitingSubmission", startingCapital: 100_000, startedAtUtc: null, endsAtUtc: null,
+    // A short real window (not the production 15s) so the timeout test doesn't need to wait that
+    // long - selectionWindowSeconds is just a prop RoundScreen reads, never hardcoded on the client.
+    selectionWindowSeconds: 1, holdingPeriodYears: 2,
+    assets: [
+      { symbol: "GOLD", displayName: "Altın", assetClass: "Commodity" },
+      { symbol: "BTC", displayName: "Bitcoin", assetClass: "Crypto" },
+    ],
+  };
+
+  const autoLockedResult: RoundResultView = {
+    number: 1, autoLocked: true, startingCapital: 100_000, finalValue: 100_000,
+    nominalReturnFraction: 0, realReturnFraction: -0.02, inflationFraction: 0.02,
+    bestPossibleValue: 120_000, bestPossibleSymbol: "BTC", worstPossibleValue: 90_000,
+    missedGain: 20_000, score: 0, assets: [],
+  };
+
+  const startGame = (): Promise<StartGameResponse> =>
+    Promise.resolve({ gameId: "g1", gameToken: "tok", currentRound: round });
+
+  it("never sends the player's unlocked slider selection when the timer runs out", async () => {
+    vi.spyOn(api, "startGame").mockImplementation(startGame);
+    const submitSpy = vi.spyOn(api, "submit").mockResolvedValue(autoLockedResult);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
+
+    render(<App />);
+    await userEvent.setup().click(screen.getByRole("button", { name: "OYUNA BAŞLA" }));
+    await screen.findByText("YATIRIMI KİLİTLE");
+
+    // Never click "Kilitle" - just let the 1-second window run out on its own.
+    await screen.findByText("Süre doldu, yatırım kaydedilmedi.", {}, { timeout: 3000 });
+
+    // The auto-timeout must submit an empty allocation - never the sliders' (untouched, still
+    // evenly-split) live values - so nothing the player merely selected but never locked in is
+    // ever recorded as an investment.
+    expect(submitSpy).toHaveBeenCalledWith("g1", 1, []);
+  }, 8000);
+
+  it("sends the player's actual selection when they press Kilitle before time runs out", async () => {
+    vi.spyOn(api, "startGame").mockImplementation(startGame);
+    const submitSpy = vi.spyOn(api, "submit").mockResolvedValue({
+      ...autoLockedResult, autoLocked: false, score: 500,
+      assets: [
+        { symbol: "GOLD", invested: 50_000, finalValue: 55_000, growthFactor: 1.1, returnFraction: 0.1 },
+        { symbol: "BTC", invested: 50_000, finalValue: 60_000, growthFactor: 1.2, returnFraction: 0.2 },
+      ],
+    });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
+
+    render(<App />);
+    await userEvent.setup().click(screen.getByRole("button", { name: "OYUNA BAŞLA" }));
+    await screen.findByText("YATIRIMI KİLİTLE");
+    await userEvent.setup().click(screen.getByRole("button", { name: /KİLİTLE/ }));
+
+    await screen.findByText("Paran ne oldu?");
+
+    // A real, on-time click sends the player's actual (evenly-split default) selection - summing
+    // to 100, never an empty array.
+    expect(submitSpy).toHaveBeenCalledTimes(1);
+    const [, , allocations] = submitSpy.mock.calls[0];
+    expect(allocations.reduce((sum, a) => sum + a.weight, 0)).toBe(100);
+    expect(allocations.length).toBeGreaterThan(0);
   });
 });

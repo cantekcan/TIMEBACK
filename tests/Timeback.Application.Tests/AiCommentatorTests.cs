@@ -37,6 +37,21 @@ public class AiCommentatorTests
     }
 
     [Fact]
+    public async Task Fallback_never_says_cash_when_no_round_was_ever_invested()
+    {
+        // Every round timed out with nothing locked in: AverageAllocationByAsset is empty. The
+        // fallback must not fill its "favourite asset" slot with "nakit" - that reads exactly like
+        // the AI claiming the player chose to hold cash, which never happened.
+        var neverInvested = Summary with { AverageAllocationByAsset = new Dictionary<string, int>() };
+        var fallback = new FallbackAiCommentator();
+
+        var comment = await fallback.CommentAsync(neverInvested, default);
+
+        comment.Text.Should().NotContain("nakit", "the fallback must never claim the player chose to hold cash");
+        comment.Text.Should().NotContain("CASH");
+    }
+
+    [Fact]
     public async Task OpenRouter_with_no_api_key_uses_the_fallback()
     {
         var openRouter = NewCommentator(new ThrowingHandler(), apiKey: "");
@@ -320,12 +335,15 @@ public class AiCommentatorTests
         bodyWithNullTime.Should().Contain("karar süresi bilinmiyor");
         bodyWithNullTime.Should().Contain("Skor: 500");
 
-        // An auto-locked round (deadline passed, nothing submitted) gets its own honest description,
-        // never a fabricated decision time.
+        // An auto-locked round (deadline passed, nothing ever locked in) gets its own honest
+        // description, never a fabricated decision time and never a synthetic "cash" allocation -
+        // there is no allocation at all, and the prompt must say so in plain Turkish.
         var autoLockedRound = new RoundSummaryForAi(2, Score: 0, AutoLocked: true, DecisionTimeSeconds: null,
-            Allocation: new Dictionary<string, int> { ["__CASH__"] = 100 });
+            Allocation: new Dictionary<string, int>());
         var bodyAutoLocked = await CapturedPromptFor(SummaryFor(autoLockedRound));
-        bodyAutoLocked.Should().Contain("süre doldu, hiç karar verilmedi");
+        bodyAutoLocked.Should().Contain("süre doldu, karar kilitlenmedi");
+        bodyAutoLocked.Should().Contain("Dağılım: Yatırım yapılmadı");
+        bodyAutoLocked.Should().NotContain("CASH");
 
         // No per-round data at all (Rounds omitted entirely) must still produce a working call.
         var noRoundsSummary = new GameSummaryForAi(

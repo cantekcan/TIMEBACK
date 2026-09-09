@@ -107,9 +107,83 @@ public class GameFlowTests
 
         result.AutoLocked.Should().BeTrue();
         result.Score.Should().Be(0);
+        result.Assets.Should().BeEmpty(); // no synthetic "cash" line, no allocation at all
 
         var game = await _games.GetAsync(id, default);
         game!.RoundByNumber(1).Status.Should().Be(RoundStatus.Locked);
+    }
+
+    [Fact]
+    public async Task Empty_allocation_before_the_deadline_is_rejected_not_treated_as_an_investment()
+    {
+        // The client sends an empty allocation to mean "the timer ran out, nothing was locked in" -
+        // it must never be usable to skip investing while the round is still genuinely open.
+        var (id, token) = await StartGame();
+
+        var act = () => Submit(id, token, 1);
+
+        await act.Should().ThrowAsync<Timeback.Domain.Common.DomainException>();
+    }
+
+    [Fact]
+    public async Task Empty_allocation_after_the_deadline_resolves_as_no_investment()
+    {
+        // This is exactly what the frontend's timer sends when it runs out without a "Kilitle"
+        // click - never the player's live, unconfirmed slider values.
+        var (id, token) = await StartGame();
+        _clock.UtcNow = _clock.UtcNow.AddMinutes(1);
+
+        var result = await Submit(id, token, 1);
+
+        result.AutoLocked.Should().BeTrue();
+        result.Score.Should().Be(0);
+        result.Assets.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_real_submission_is_never_overwritten_by_a_later_empty_timeout_submission()
+    {
+        // Mirrors the client-side race: a manual "Kilitle" click that already succeeded must never
+        // be clobbered by the timer's own empty auto-submit landing shortly after (e.g. both
+        // requests were briefly in flight together).
+        var (id, token) = await StartGame();
+        var real = await Submit(id, token, 1, ("GOLD", 100));
+
+        var late = await Submit(id, token, 1); // empty - as if the timer's own call landed after
+
+        late.Should().BeEquivalentTo(real);
+        late.AutoLocked.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GetGameResult_never_mentions_the_internal_cash_symbol_for_an_autolocked_round()
+    {
+        // Round 1: real, on-time submission. Round 2: begins, then its deadline passes with
+        // nothing ever locked in. Round 3: real, on-time submission.
+        var (id, token) = await StartGame();
+        var getCurrentRound = new GetCurrentRoundHandler(_games, _market, Play, _tokens, _clock);
+
+        await Submit(id, token, 1, ("GOLD", 100));
+
+        await getCurrentRound.Handle(new GetCurrentRoundQuery(id, token), default);
+        _clock.UtcNow = _clock.UtcNow.AddMinutes(1);
+
+        // This call's own EnforceDeadlinesAsync catches round 2's expiry before beginning round 3.
+        await getCurrentRound.Handle(new GetCurrentRoundQuery(id, token), default);
+        await Submit(id, token, 3, ("GOLD", 100));
+
+        var view = await new GetGameResultHandler(_games, _board, Play, _tokens, new EchoAi())
+            .Handle(new GetGameResultQuery(id, token), default);
+
+        view.Status.Should().Be("Completed");
+        var round2 = view.Rounds.Single(r => r.Number == 2);
+        round2.AutoLocked.Should().BeTrue();
+        round2.Score.Should().Be(0);
+        round2.Assets.Should().BeEmpty();
+
+        // Nothing in any round's result may leak the internal sentinel or imply a real decision.
+        view.Rounds.SelectMany(r => r.Assets).Should().NotContain(a => a.Symbol.Contains("CASH"));
+        view.Rounds.SelectMany(r => r.Assets).Should().NotContain(a => a.Symbol.Contains("cash", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

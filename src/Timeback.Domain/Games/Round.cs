@@ -73,10 +73,18 @@ public sealed class Round : Entity
         if (IsExpired(nowUtc))
             throw new DomainException($"Round {Number} deadline has passed.");
 
-        Lock(allocation, quotes, cpiThen, cpiNow, startingCapital, nowUtc, autoLocked: false);
+        foreach (var line in allocation.Lines)
+            _allocations.Add(new RoundAllocation(line.Symbol, line.Weight.Value));
+
+        var valuation = PortfolioCalculator.Value(startingCapital, allocation.Lines, quotes);
+        var outcome = RoundScoring.Score(valuation, quotes, cpiThen, cpiNow);
+        Finish(outcome, nowUtc, autoLocked: false);
     }
 
-    /// <summary>Deadline passed with no submission: lock with an all-cash (zero-growth) portfolio, score 0-ish.</summary>
+    /// <summary>Deadline passed with no allocation ever locked in: the round closes with no investment
+    /// at all - no allocation lines, no growth, score 0. There is no synthetic "cash" asset standing
+    /// in for a choice the player never made; a reader (a person or the AI commentator) later must see
+    /// this as "no investment happened", not as a decision to hold cash.</summary>
     internal void AutoLock(
         IReadOnlyDictionary<string, AssetQuote> quotes,
         decimal cpiThen,
@@ -86,33 +94,16 @@ public sealed class Round : Entity
     {
         if (Status != RoundStatus.AwaitingSubmission) return;
 
-        // Cash: model as a synthetic quote with growth factor 1 so the engine stays uniform.
-        var cashSymbol = "__CASH__";
-        var withCash = new Dictionary<string, AssetQuote>(quotes) { [cashSymbol] = new(cashSymbol, 1m, 1m) };
-        var allocation = AllocationSet.Create([(cashSymbol, 100)], new HashSet<string> { cashSymbol });
-        Lock(allocation, withCash, cpiThen, cpiNow, startingCapital, nowUtc, autoLocked: true);
+        // Nothing invested -> nothing grew: the player's money is worth exactly what it started at
+        // (before inflation). RoundScoring still needs the real quotes to report what the best/worst
+        // possible outcome would have been, so the player can see what they missed.
+        var valuation = new PortfolioValuation(startingCapital, startingCapital, []);
+        var outcome = RoundScoring.Score(valuation, quotes, cpiThen, cpiNow) with { Score = 0 };
+        Finish(outcome, nowUtc, autoLocked: true);
     }
 
-    private void Lock(
-        AllocationSet allocation,
-        IReadOnlyDictionary<string, AssetQuote> quotes,
-        decimal cpiThen,
-        decimal cpiNow,
-        Money startingCapital,
-        DateTime nowUtc,
-        bool autoLocked)
+    private void Finish(RoundOutcome outcome, DateTime nowUtc, bool autoLocked)
     {
-        _allocations.Clear();
-        foreach (var line in allocation.Lines)
-            _allocations.Add(new RoundAllocation(line.Symbol, line.Weight.Value));
-
-        var valuation = PortfolioCalculator.Value(startingCapital, allocation.Lines, quotes);
-        var realQuotes = quotes.Where(kv => kv.Key != "__CASH__").ToDictionary(kv => kv.Key, kv => kv.Value);
-        var scoringQuotes = realQuotes.Count > 0 ? realQuotes : quotes;
-        var outcome = RoundScoring.Score(valuation, scoringQuotes, cpiThen, cpiNow);
-        if (autoLocked)
-            outcome = outcome with { Score = 0 }; // forfeiting the round forfeits its points
-
         Result = RoundResult.From(outcome);
         Status = RoundStatus.Locked;
         SubmittedAtUtc = nowUtc;

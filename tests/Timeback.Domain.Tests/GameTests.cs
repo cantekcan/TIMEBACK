@@ -80,7 +80,7 @@ public class GameTests
     }
 
     [Fact]
-    public void Auto_lock_produces_a_zero_growth_cash_result_when_the_player_never_submits()
+    public void Auto_lock_produces_a_zero_growth_no_investment_result_when_the_player_never_submits()
     {
         var now = new DateTime(2024, 1, 1, 12, 0, 0, DateTimeKind.Utc);
         var game = NewGame(now);
@@ -93,6 +93,16 @@ public class GameTests
         r.AutoLocked.Should().BeTrue();
         r.Result!.FinalValue.Should().Be(100_000m);
         r.Result!.Score.Should().Be(0);
+        // No synthetic asset stands in for a decision the player never made - there is no
+        // allocation at all, not even a "cash" one.
+        r.Allocations.Should().BeEmpty();
+        r.Result!.Assets.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Selection_window_is_fifteen_seconds()
+    {
+        Game.SelectionWindow.Should().Be(TimeSpan.FromSeconds(15));
     }
 
     [Fact]

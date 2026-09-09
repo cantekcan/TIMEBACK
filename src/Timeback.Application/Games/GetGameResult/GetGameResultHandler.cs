@@ -87,7 +87,7 @@ public sealed class GetGameResultHandler(
     {
         var res = r.Result!;
         var topPick = r.Allocations.OrderByDescending(a => a.Weight).FirstOrDefault();
-        var pick = topPick is null ? "nakit" : $"{topPick.Symbol} %{topPick.Weight}";
+        var pick = topPick is null ? "yatırım yapılmadı" : $"{topPick.Symbol} %{topPick.Weight}";
         return $"Round {r.Number}: {pick}, {res.Score} puan, reel {res.RealReturnFraction * 100:+0;-0}%";
     }
 }

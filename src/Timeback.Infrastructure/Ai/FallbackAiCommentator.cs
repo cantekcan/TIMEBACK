@@ -11,9 +11,16 @@ public sealed class FallbackAiCommentator : IAiCommentator
     public Task<AiComment> CommentAsync(GameSummaryForAi s, CancellationToken ct)
     {
         var pct = s.MaxScore == 0 ? 0 : (int)Math.Round(100.0 * s.FinalScore / s.MaxScore);
-        var favourite = s.AverageAllocationByAsset.Count == 0
-            ? "nakit"
-            : s.AverageAllocationByAsset.OrderByDescending(kv => kv.Value).First().Key;
+
+        // No allocation data at all means every round's deadline passed with nothing ever locked
+        // in - "favourite asset" doesn't apply, so this gets its own line instead of slotting "no
+        // investment" into a sentence shaped around a real pick.
+        if (s.AverageAllocationByAsset.Count == 0)
+            return Task.FromResult(new AiComment(
+                $"Zaman makinesine bindin ama hiç yatırım yapmadan indin: %{pct}. Bir dahaki sefere en azından bir tahminde bulun.",
+                null));
+
+        var favourite = s.AverageAllocationByAsset.OrderByDescending(kv => kv.Value).First().Key;
 
         var line = pct switch
         {
