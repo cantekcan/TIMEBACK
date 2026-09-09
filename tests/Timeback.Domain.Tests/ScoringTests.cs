@@ -99,4 +99,62 @@ public class ScoringTests
         var v = PortfolioCalculator.Value(Money.Of(100_000), [new("A", Percentage.Of(100))], quotes);
         RoundScoring.Score(v, quotes, 100, 100).Score.Should().Be(RoundScoring.MaxRoundScore);
     }
+
+    // -- Time bonus: 700/300 split (see RoundScoring.TimeBonus / ScaleInvestmentScore) --------------
+
+    [Theory]
+    [InlineData(15.0, 300)]  // full window remaining -> max bonus
+    [InlineData(10.0, 200)]
+    [InlineData(5.0, 100)]
+    [InlineData(2.0, 40)]
+    [InlineData(0.5, 10)]
+    [InlineData(0.0, 0)]
+    public void Time_bonus_is_floor_of_remaining_seconds_times_twenty(double remainingSeconds, int expectedBonus)
+    {
+        var ends = new DateTime(2024, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        var submitted = ends.AddSeconds(-remainingSeconds);
+        RoundScoring.TimeBonus(ends, submitted).Should().Be(expectedBonus);
+    }
+
+    [Fact]
+    public void Time_bonus_never_goes_negative_when_submitted_after_the_deadline()
+    {
+        var ends = new DateTime(2024, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        var submitted = ends.AddSeconds(5); // clock skew / late submission somehow reaching here
+        RoundScoring.TimeBonus(ends, submitted).Should().Be(0);
+    }
+
+    [Fact]
+    public void Time_bonus_never_exceeds_the_max_even_for_an_impossibly_large_remaining_time()
+    {
+        var ends = new DateTime(2024, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        var submitted = ends.AddSeconds(-999); // theoretical/impossible value
+        RoundScoring.TimeBonus(ends, submitted).Should().Be(RoundScoring.MaxTimeBonus);
+    }
+
+    [Fact]
+    public void Investment_score_scales_the_legacy_mark_down_to_seven_hundred_preserving_order()
+    {
+        RoundScoring.ScaleInvestmentScore(1000).Should().Be(RoundScoring.MaxInvestmentScore); // 700
+        RoundScoring.ScaleInvestmentScore(0).Should().Be(0);
+        RoundScoring.ScaleInvestmentScore(500).Should().Be(350);
+        // order-preserving: a better legacy mark never yields a worse investment score
+        RoundScoring.ScaleInvestmentScore(600).Should().BeLessThan(RoundScoring.ScaleInvestmentScore(700));
+    }
+
+    [Fact]
+    public void Apply_time_bonus_combines_investment_and_speed_capped_at_the_round_max()
+    {
+        var quotes = Quotes(("WIN", 100, 400), ("LOSE", 100, 50));
+        var best = PortfolioCalculator.Value(Money.Of(100_000), [new("WIN", Percentage.Of(100))], quotes);
+        var outcome = RoundScoring.Score(best, quotes, 100, 100); // legacy Score = 1000 (best pick)
+
+        var ends = new DateTime(2024, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        var combined = RoundScoring.ApplyTimeBonus(outcome, ends, ends.AddSeconds(-15));
+
+        combined.InvestmentScore.Should().Be(700);
+        combined.TimeBonus.Should().Be(300);
+        combined.Score.Should().Be(1000);
+        combined.Score.Should().Be(RoundScoring.MaxRoundScore);
+    }
 }

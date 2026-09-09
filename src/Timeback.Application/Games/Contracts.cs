@@ -37,6 +37,9 @@ public sealed record RoundResultView(
     decimal WorstPossibleValue,
     decimal MissedGain,
     int Score,
+    // Null only for a round scored before this breakdown existed - see RoundResult.InvestmentScore.
+    int? InvestmentScore,
+    int? TimeBonus,
     IReadOnlyList<AssetResultView> Assets);
 
 public sealed record GameResultView(
@@ -73,6 +76,7 @@ internal static class ViewMapping
             res.StartingCapital, res.FinalValue,
             res.NominalReturnFraction, res.RealReturnFraction, res.InflationFraction,
             res.BestPossibleValue, res.BestPossibleSymbol, res.WorstPossibleValue, res.MissedGain, res.Score,
+            res.InvestmentScore, res.TimeBonus,
             res.Assets.Select(a => new AssetResultView(
                 a.Symbol, a.GrowthFactor, a.GrowthFactor - 1m)).ToList());
     }

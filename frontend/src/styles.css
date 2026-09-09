@@ -179,6 +179,8 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border-radius: 
 
 /* ---- round score explanation ---- */
 .score-box { padding: 10px 12px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--line); }
+.score-breakdown { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
+.sb-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); }
 .score-value { font-size: 26px; font-weight: 800; color: var(--accent); }
 .score-value small { font-size: 14px; color: var(--muted); font-weight: 600; }
 .score-box .explain { margin-top: 4px; }

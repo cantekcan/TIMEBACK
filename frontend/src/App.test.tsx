@@ -80,7 +80,7 @@ describe("Round timer and locking", () => {
     number: 1, autoLocked: true, startingCapital: 100_000, finalValue: 100_000,
     nominalReturnFraction: 0, realReturnFraction: -0.02, inflationFraction: 0.02,
     bestPossibleValue: 120_000, bestPossibleSymbol: "BTC", worstPossibleValue: 90_000,
-    missedGain: 20_000, score: 0, assets: [],
+    missedGain: 20_000, score: 0, investmentScore: 0, timeBonus: 0, assets: [],
   };
 
   const startGame = (): Promise<StartGameResponse> =>
@@ -107,7 +107,7 @@ describe("Round timer and locking", () => {
   it("sends the player's actual selection when they press Kilitle before time runs out", async () => {
     vi.spyOn(api, "startGame").mockImplementation(startGame);
     const submitSpy = vi.spyOn(api, "submit").mockResolvedValue({
-      ...autoLockedResult, autoLocked: false, score: 500,
+      ...autoLockedResult, autoLocked: false, score: 500, investmentScore: 350, timeBonus: 150,
       assets: [
         { symbol: "GOLD", growthFactor: 1.1, returnFraction: 0.1 },
         { symbol: "BTC", growthFactor: 1.2, returnFraction: 0.2 },

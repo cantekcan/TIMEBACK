@@ -16,6 +16,8 @@ export interface RoundResultView {
   nominalReturnFraction: number; realReturnFraction: number; inflationFraction: number;
   bestPossibleValue: number; bestPossibleSymbol: string; worstPossibleValue: number;
   missedGain: number; score: number;
+  // Null only for a round scored before this breakdown existed (an old completed game).
+  investmentScore: number | null; timeBonus: number | null;
   assets: AssetResultView[];
 }
 export interface GameResultView {

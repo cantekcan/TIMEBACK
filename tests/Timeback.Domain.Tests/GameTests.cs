@@ -71,7 +71,8 @@ public class GameTests
         for (var n = 1; n <= RoundScoring.TotalRounds; n++)
         {
             game.BeginCurrentRound(now);
-            game.SubmitRound(n, Alloc(100, 0), Quotes(), 100, 100, now.AddSeconds(1));
+            // Submitted the instant the round began -> full 15s remaining -> max time bonus too.
+            game.SubmitRound(n, Alloc(100, 0), Quotes(), 100, 100, now);
         }
 
         game.Status.Should().Be(GameStatus.Completed);
@@ -93,10 +94,69 @@ public class GameTests
         r.AutoLocked.Should().BeTrue();
         r.Result!.FinalValue.Should().Be(100_000m);
         r.Result!.Score.Should().Be(0);
+        r.Result!.InvestmentScore.Should().Be(0);
+        r.Result!.TimeBonus.Should().Be(0); // no time bonus on a timeout either
         // No synthetic asset stands in for a decision the player never made - there is no
         // allocation at all, not even a "cash" one.
         r.Allocations.Should().BeEmpty();
         r.Result!.Assets.Should().BeEmpty();
+    }
+
+    // -- Round score = investment (0-700) + time bonus (0-300), measured against the real 15s window,
+    //    never the 2s network-grace tacked onto EndsAtUtc for submission tolerance -------------------
+
+    [Theory]
+    [InlineData(0, 300)]   // locked in instantly -> full bonus
+    [InlineData(5, 200)]
+    [InlineData(10, 100)]
+    [InlineData(14, 20)]
+    [InlineData(15, 0)]    // exactly at the real window's end -> no bonus, still on time
+    [InlineData(16, 0)]    // inside the network-grace allowance -> accepted, but grace buys no bonus
+    [InlineData(17, 0)]    // right at the very edge of the grace allowance -> still accepted, still 0
+    public void Time_bonus_is_measured_against_the_real_window_not_the_network_grace(int elapsedSeconds, int expectedTimeBonus)
+    {
+        var now = new DateTime(2024, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        var game = NewGame(now);
+        game.BeginCurrentRound(now); // EndsAtUtc = now + 15s + 2s grace
+
+        game.SubmitRound(1, Alloc(100, 0), Quotes(), 100, 100, now.AddSeconds(elapsedSeconds));
+
+        var res = game.RoundByNumber(1).Result!;
+        res.InvestmentScore.Should().Be(RoundScoring.MaxInvestmentScore); // 700 (GOLD was the best pick)
+        res.TimeBonus.Should().Be(expectedTimeBonus);
+        res.Score.Should().Be(RoundScoring.MaxInvestmentScore + expectedTimeBonus);
+    }
+
+    [Fact]
+    public void Worst_pick_locked_in_instantly_still_never_exceeds_the_round_max()
+    {
+        var now = new DateTime(2024, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        var game = NewGame(now);
+        game.BeginCurrentRound(now);
+
+        // BTC is the worst pick this round (100 -> 50) but submitted with the full window remaining.
+        game.SubmitRound(1, Alloc(0, 100), Quotes(), 100, 100, now);
+
+        var res = game.RoundByNumber(1).Result!;
+        res.InvestmentScore.Should().Be(0);
+        res.TimeBonus.Should().Be(RoundScoring.MaxTimeBonus); // 300
+        res.Score.Should().Be(300);
+        res.Score.Should().BeLessThanOrEqualTo(RoundScoring.MaxRoundScore);
+    }
+
+    [Fact]
+    public void Three_rounds_of_best_pick_at_full_speed_cap_at_the_max_game_score()
+    {
+        var now = new DateTime(2024, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        var game = NewGame(now);
+
+        for (var n = 1; n <= RoundScoring.TotalRounds; n++)
+        {
+            game.BeginCurrentRound(now);
+            game.SubmitRound(n, Alloc(100, 0), Quotes(), 100, 100, now);
+        }
+
+        game.FinalScore.Should().Be(RoundScoring.MaxGameScore); // 3000
     }
 
     [Fact]

@@ -78,6 +78,12 @@ public sealed class Round : Entity
 
         var valuation = PortfolioCalculator.Value(startingCapital, allocation.Lines, quotes);
         var outcome = RoundScoring.Score(valuation, quotes, cpiThen, cpiNow);
+        // Real submission time, from the server's own clock - never the client's countdown - decides
+        // the speed bonus. The bonus is measured against the real 15-second selection window
+        // (StartedAtUtc + 15s), not EndsAtUtc - EndsAtUtc also carries the network-grace allowance,
+        // which must stay pure submission tolerance and never buy extra time-bonus points.
+        var windowEndUtc = EndsAtUtc!.Value - Game.NetworkGrace;
+        outcome = RoundScoring.ApplyTimeBonus(outcome, windowEndUtc, nowUtc);
         Finish(outcome, nowUtc, autoLocked: false);
     }
 
@@ -98,7 +104,7 @@ public sealed class Round : Entity
         // (before inflation). RoundScoring still needs the real quotes to report what the best/worst
         // possible outcome would have been, so the player can see what they missed.
         var valuation = new PortfolioValuation(startingCapital, startingCapital, []);
-        var outcome = RoundScoring.Score(valuation, quotes, cpiThen, cpiNow) with { Score = 0 };
+        var outcome = RoundScoring.Score(valuation, quotes, cpiThen, cpiNow) with { InvestmentScore = 0, TimeBonus = 0, Score = 0 };
         Finish(outcome, nowUtc, autoLocked: true);
     }
 

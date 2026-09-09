@@ -398,10 +398,23 @@ function RoundResultScreen({ round, result, onNext }: { round: RoundView; result
 
       <h3>Tur skoru</h3>
       <div className="score-box">
+        {result.investmentScore != null && result.timeBonus != null && (
+          <div className="score-breakdown">
+            <div className="sb-row">
+              <span>Yatırım puanı</span>
+              <span className="num">{result.investmentScore} / 700</span>
+            </div>
+            <div className="sb-row">
+              <span>Hız bonusu</span>
+              <span className="num pos">+{result.timeBonus}</span>
+            </div>
+          </div>
+        )}
         <div className="score-value num">{result.score}<small> / 1000</small></div>
         <p className="explain">
           Bu turda en kötü olası sonuç {fmtTRY(result.worstPossibleValue)}, en iyi olası sonuç {fmtTRY(result.bestPossibleValue)} idi.
-          Sen {fmtTRY(result.finalValue)} ile bu aralığın <b>%{pct1(skillPct)}</b>'ine ulaştın - skorun da bunun 1000 üzerinden karşılığı.
+          Sen {fmtTRY(result.finalValue)} ile bu aralığın <b>%{pct1(skillPct)}</b>'ine ulaştın{result.investmentScore != null ? " - yatırım puanın da bunun 700 üzerinden karşılığı." : "."}
+          {result.timeBonus != null && " Kalan süreyle orantılı bir hız bonusu da eklenir: 15 saniyede kilitlersen +300 puan."}
         </p>
       </div>
 
