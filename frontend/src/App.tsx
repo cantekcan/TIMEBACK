@@ -55,6 +55,14 @@ export function App() {
     }
   });
 
+  // Stable across every App re-render (e.g. an unrelated `error` toast timing out) - a functional
+  // updater reads the current screen instead of closing over it, so this never needs `screen` as a
+  // dependency. RoundScreen's own `submit`/timeout-retry callbacks depend on this reference staying
+  // put; if it changed on every render, their effects would tear down and re-fire needlessly.
+  const onRoundLocked = useCallback((result: RoundResultView) => {
+    setScreen((s) => (s.k === "round" ? { k: "roundResult", gameId: s.gameId, round: s.round, result } : s));
+  }, []);
+
   return (
     <div className="shell">
       <div className="brand">
@@ -70,7 +78,7 @@ export function App() {
       {screen.k === "round" && (
         <RoundScreen key={screen.round.number} gameId={screen.gameId} round={screen.round}
           onError={setError}
-          onLocked={(result) => setScreen({ k: "roundResult", gameId: screen.gameId, round: screen.round, result })} />
+          onLocked={onRoundLocked} />
       )}
       {screen.k === "roundResult" && (
         <>
@@ -98,7 +106,7 @@ export function App() {
         Tarihsel veriler üzerinden hazırlanmış bir simülasyondur. Yatırım tavsiyesi değildir.
         <br />
         Built by Can Tekcan ·{" "}
-        <a href="https://github.com/cantekcan/TIMEBACK" target="_blank" rel="noopener noreferrer">GitHub</a>
+        <a href="https://www.linkedin.com/in/tekcan" target="_blank" rel="noopener noreferrer">LinkedIn</a>
       </p>
     </div>
   );
@@ -240,6 +248,66 @@ function RoundScreen({ gameId, round, onLocked, onError }: {
     return submit(allocations);
   }, [symbols, weights, submit]);
 
+  // The client's own countdown is deliberately anchored earlier than the server's real deadline
+  // (see the comment above `deadline`) - by design, the empty "time's up" submission below almost
+  // always reaches the server a moment *before* the server's own StartedAtUtc+15s+NetworkGrace
+  // cutoff, while the round is still technically open. The domain rightly rejects an empty
+  // allocation for a round that's still open (422 - see AllocationSet.Create), so this first
+  // rejection is an expected race, not a real error: retry at a fixed short interval - never tied
+  // to re-renders, never unbounded - until the server's own deadline has also passed and the SAME
+  // request succeeds via its auto-lock. This never touches `submit`/`submitSelection` above, so a
+  // manual "Kilitle" click is never retried and never sends an empty allocation.
+  const TIMEOUT_RETRY_DELAY_MS = 200;
+  // Mirrors `Game.NetworkGrace` (src/Timeback.Domain/Games/Game.cs) - not exposed on RoundView, so
+  // duplicated here on purpose; if that constant ever changes, this must change with it.
+  const NETWORK_GRACE_MS = 2000;
+  // Extra cushion on top of NetworkGrace for the retry request's own round-trip time and any small
+  // clock drift between client and server - keeps the bound from cutting it exactly at the wire.
+  const RETRY_SAFETY_MARGIN_MS = 1000;
+  // Hard backstop only, never expected to bind in practice (the deadline check below is always the
+  // tighter of the two) - guarantees retrying can never be unbounded even if `round.startedAtUtc`
+  // were ever missing or clocks were badly skewed.
+  const TIMEOUT_MAX_ATTEMPTS = 25;
+
+  const submitTimeout = useCallback(async () => {
+    if (locking.current) return;
+    locking.current = true;
+    setSubmitting(true);
+
+    // The real bound: retry until the server's own authoritative deadline (StartedAtUtc + the
+    // selection window + NetworkGrace, plus a small safety margin) has passed - not a blind attempt
+    // count. `startedAtUtc` is always set by the time this screen renders (both StartGameHandler and
+    // GetCurrentRoundHandler begin the round before returning it), so this reflects the *actual* gap
+    // between this client's countdown and the server's, whatever it happens to be this round.
+    const retryDeadline = round.startedAtUtc
+      ? new Date(round.startedAtUtc).getTime() + totalMs + NETWORK_GRACE_MS + RETRY_SAFETY_MARGIN_MS
+      : deadline + NETWORK_GRACE_MS + RETRY_SAFETY_MARGIN_MS; // defensive fallback, not expected to run
+
+    for (let attempt = 1; attempt <= TIMEOUT_MAX_ATTEMPTS; attempt++) {
+      try {
+        const result = await api.submit(gameId, round.number, []);
+        locking.current = false;
+        setSubmitting(false);
+        onLocked(result);
+        return;
+      } catch {
+        const pastServerDeadline = Date.now() >= retryDeadline;
+        if (pastServerDeadline || attempt === TIMEOUT_MAX_ATTEMPTS) {
+          // Exhausted: the server's own deadline has definitely passed by now (or the hard backstop
+          // kicked in) and it's still failing for some other reason - a real error, but phrased for
+          // the timeout flow specifically rather than surfacing the raw domain validation message
+          // ("Allocation must contain at least one asset."), which would be a confusing thing for a
+          // player who did nothing wrong to see.
+          onError("Süre doldu, tur kilitlenemedi. Lütfen tekrar dene.");
+          locking.current = false;
+          setSubmitting(false);
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, TIMEOUT_RETRY_DELAY_MS));
+      }
+    }
+  }, [gameId, round.number, round.startedAtUtc, totalMs, deadline, onLocked, onError]);
+
   useEffect(() => {
     const t = setInterval(() => {
       const n = Date.now();
@@ -249,10 +317,10 @@ function RoundScreen({ gameId, round, onLocked, onError }: {
       // values. The server resolves this as "no investment, score 0" instead of quietly locking in
       // a selection the player never actually committed to. (If a manual click is already in
       // flight, `locking` makes this a no-op - it never overrides a real, on-time submission.)
-      if (deadline - n <= 0) { clearInterval(t); void submit([]); }
+      if (deadline - n <= 0) { clearInterval(t); void submitTimeout(); }
     }, 100);
     return () => clearInterval(t);
-  }, [deadline, submit]);
+  }, [deadline, submitTimeout]);
 
   const onSlide = (symbol: string, value: number) =>
     setWeights((w) => rebalance(w, symbol, clampWeight(value)));

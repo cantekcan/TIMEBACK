@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App } from "./App";
-import { api, type RoundResultView, type RoundView, type StartGameResponse } from "./api";
+import { api, ApiError, type RoundResultView, type RoundView, type StartGameResponse } from "./api";
 
 afterEach(() => {
   cleanup();
@@ -64,9 +64,13 @@ describe("Backend warm-up", () => {
 });
 
 describe("Round timer and locking", () => {
-  const round: RoundView = {
+  // A fresh `startedAtUtc` (taken at the moment the round actually begins in each test) - the retry
+  // window is now computed off this, mirroring how the server always has it set (StartGameHandler
+  // and GetCurrentRoundHandler both begin the round before returning it), so a stale, file-load-time
+  // timestamp would make the deadline-based retry bail out immediately in later tests.
+  const makeRound = (): RoundView => ({
     number: 1, totalRounds: 3, requestedDate: "2020-01-01",
-    startingCapital: 100_000, startedAtUtc: null,
+    startingCapital: 100_000, startedAtUtc: new Date().toISOString(),
     // A short real window (not the production 15s) so the timeout test doesn't need to wait that
     // long - selectionWindowSeconds is just a prop RoundScreen reads, never hardcoded on the client.
     selectionWindowSeconds: 1, holdingPeriodYears: 2,
@@ -74,7 +78,7 @@ describe("Round timer and locking", () => {
       { symbol: "GOLD", displayName: "Altın", assetClass: "Commodity" },
       { symbol: "BTC", displayName: "Bitcoin", assetClass: "Crypto" },
     ],
-  };
+  });
 
   const autoLockedResult: RoundResultView = {
     number: 1, autoLocked: true, startingCapital: 100_000, finalValue: 100_000,
@@ -84,7 +88,7 @@ describe("Round timer and locking", () => {
   };
 
   const startGame = (): Promise<StartGameResponse> =>
-    Promise.resolve({ gameId: "g1", gameToken: "tok", currentRound: round });
+    Promise.resolve({ gameId: "g1", gameToken: "tok", currentRound: makeRound() });
 
   it("never sends the player's unlocked slider selection when the timer runs out", async () => {
     vi.spyOn(api, "startGame").mockImplementation(startGame);
@@ -129,4 +133,123 @@ describe("Round timer and locking", () => {
     expect(allocations.reduce((sum, a) => sum + a.weight, 0)).toBe(100);
     expect(allocations.length).toBeGreaterThan(0);
   });
+
+  it("retries a timed-out empty submission a bounded number of times without re-creating the countdown effect", async () => {
+    // The server's own deadline sits slightly after the client's, so the first (and sometimes
+    // second) empty submission the client fires right at 0s can legitimately race a round that's
+    // still open server-side (422) before the same request finally succeeds once the server's own
+    // deadline has also passed - see RoundScreen's submitTimeout.
+    vi.spyOn(api, "startGame").mockImplementation(startGame);
+    const submitSpy = vi.spyOn(api, "submit")
+      .mockRejectedValueOnce(new ApiError("Allocation must contain at least one asset.", 422))
+      .mockRejectedValueOnce(new ApiError("Allocation must contain at least one asset.", 422))
+      .mockResolvedValueOnce(autoLockedResult);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
+
+    render(<App />);
+    await userEvent.setup().click(screen.getByRole("button", { name: "OYUNA BAŞLA" }));
+    await screen.findByText("YATIRIMI KİLİTLE");
+
+    await screen.findByText("Süre doldu, yatırım kaydedilmedi.", {}, { timeout: 5000 });
+
+    // Exactly the two rejected attempts plus the one that finally succeeds - bounded, never an
+    // unbounded retry storm - and every attempt carried an empty allocation, never the (untouched,
+    // still evenly-split) live slider values. The retry loop lives entirely inside submitTimeout's
+    // own `for` loop (not in the countdown effect re-mounting on every App re-render), so this
+    // count is exactly what submitTimeout's own bound would produce - proof the old
+    // effect-recreation-driven retry storm is gone.
+    expect(submitSpy).toHaveBeenCalledTimes(3);
+    submitSpy.mock.calls.forEach(([, , allocations]) => expect(allocations).toEqual([]));
+
+    // The two expected mid-retry 422s are not surfaced as application errors - only a final,
+    // real failure would ever show the ⚠ toast.
+    expect(screen.queryByText(/⚠/)).toBeNull();
+  }, 8000);
+
+  it("never retries a manual Kilitle submission - a failure surfaces immediately as a real error", async () => {
+    vi.spyOn(api, "startGame").mockImplementation(startGame);
+    const submitSpy = vi.spyOn(api, "submit").mockRejectedValue(new ApiError("Sunucu hatası.", 500));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
+
+    render(<App />);
+    await userEvent.setup().click(screen.getByRole("button", { name: "OYUNA BAŞLA" }));
+    await screen.findByText("YATIRIMI KİLİTLE");
+    await userEvent.setup().click(screen.getByRole("button", { name: /KİLİTLE/ }));
+
+    await screen.findByText(/Sunucu hatası\./);
+
+    // A manual submission is never retried, unlike the timeout path above.
+    expect(submitSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the lock button disabled for the whole timeout-retry window, so no concurrent duplicate request is possible", async () => {
+    vi.spyOn(api, "startGame").mockImplementation(startGame);
+    let resolveSubmit: ((v: RoundResultView) => void) | undefined;
+    const submitSpy = vi.spyOn(api, "submit").mockImplementation(
+      () => new Promise<RoundResultView>((resolve) => { resolveSubmit = resolve; }),
+    );
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
+
+    render(<App />);
+    await userEvent.setup().click(screen.getByRole("button", { name: "OYUNA BAŞLA" }));
+    await screen.findByText("YATIRIMI KİLİTLE");
+
+    // Deadline passes, the timeout submission starts and never resolves yet.
+    await screen.findByText("KİLİTLENİYOR…", {}, { timeout: 3000 });
+    expect((screen.getByRole("button", { name: "KİLİTLENİYOR…" }) as HTMLButtonElement).disabled).toBe(true);
+    // `locking.current` blocks any second concurrent attempt for as long as the first is in flight.
+    expect(submitSpy).toHaveBeenCalledTimes(1);
+
+    resolveSubmit?.(autoLockedResult);
+    await screen.findByText("Süre doldu, yatırım kaydedilmedi.");
+  }, 8000);
+
+  it("gives up once the server's own deadline has passed and surfaces a real (player-friendly) error instead of retrying forever", async () => {
+    vi.spyOn(api, "startGame").mockImplementation(startGame);
+    const submitSpy = vi.spyOn(api, "submit")
+      .mockRejectedValue(new ApiError("Allocation must contain at least one asset.", 422));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
+
+    render(<App />);
+    await userEvent.setup().click(screen.getByRole("button", { name: "OYUNA BAŞLA" }));
+    await screen.findByText("YATIRIMI KİLİTLE");
+
+    // The bound is now the server's real deadline (startedAtUtc + window + NetworkGrace + safety
+    // margin), not a blind attempt count - for this test's 1s window that's a few seconds of
+    // retrying before giving up.
+    await screen.findByText(/Süre doldu, tur kilitlenemedi/, {}, { timeout: 8000 });
+
+    // Retried more than once (it's a real retry loop) but never unbounded - well under the hard
+    // attempt backstop, and the raw domain validation message ("Allocation must contain at least
+    // one asset.") is never shown to the player.
+    expect(submitSpy.mock.calls.length).toBeGreaterThan(1);
+    expect(submitSpy.mock.calls.length).toBeLessThanOrEqual(25);
+    expect(screen.queryByText(/Allocation must contain/)).toBeNull();
+  }, 12000);
+
+  it("keeps the countdown effect stable across an unrelated App re-render (a manual submit error), never spawning duplicate timeout retries", async () => {
+    // The one thing that can legitimately trigger an App-level re-render mid-round (other than the
+    // round itself resolving) is a failed manual submit, via onError -> setError. onLocked being
+    // stable means this must never tear down and re-mount the countdown effect.
+    vi.spyOn(api, "startGame").mockImplementation(startGame);
+    const submitSpy = vi.spyOn(api, "submit")
+      .mockRejectedValueOnce(new ApiError("Sunucu hatası.", 500))
+      .mockResolvedValueOnce(autoLockedResult);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
+
+    render(<App />);
+    await userEvent.setup().click(screen.getByRole("button", { name: "OYUNA BAŞLA" }));
+    await screen.findByText("YATIRIMI KİLİTLE");
+    await userEvent.setup().click(screen.getByRole("button", { name: /KİLİTLE/ }));
+    await screen.findByText(/Sunucu hatası\./);
+
+    // Let the toast and the round's own 1s window both elapse - the round must still resolve via
+    // exactly one more (timeout) submit call, not a storm caused by the App re-render above tearing
+    // down and re-mounting the countdown effect.
+    await screen.findByText("Süre doldu, yatırım kaydedilmedi.", {}, { timeout: 6000 });
+
+    expect(submitSpy).toHaveBeenCalledTimes(2); // the one failed manual click + the one timeout submit
+    const [, , timeoutAllocation] = submitSpy.mock.calls[1];
+    expect(timeoutAllocation).toEqual([]);
+  }, 10000);
 });
