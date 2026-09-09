@@ -114,7 +114,7 @@ public sealed class GeminiAiCommentator(
         }
     }
 
-    private const int MaxCommentaryLength = 500;
+    private const int MaxCommentaryLength = 220; // matches the prompt's own "en fazla 220 karakter" rule
     private const int MaxPlausibleRawLength = 600; // a real 1-2 sentence roast never gets close to this
 
     /// <summary>Bare verdicts a moderation/classifier model would return instead of a comment.</summary>
@@ -237,65 +237,63 @@ public sealed class GeminiAiCommentator(
     }
 
     /// <summary>
-    /// Shorter, de-duplicated version of the original prompt - same persona, same priority rules, same
-    /// banned patterns, same output constraints, but each said once instead of repeated across an
-    /// English+Turkish pair, a separate "inner monologue" section and a self-check checklist that never
-    /// reached the player. Verified against production's optimized-prompt benchmark (real Gemini/
-    /// OpenRouter calls) before landing here - shorter did not mean worse.
+    /// Prompt variant "C" from the A/B/C benchmark (see prompt-comparison session notes) - shorter and
+    /// more focused than the original "A" prompt it replaced, plus additions found necessary by real-
+    /// Gemini benchmarking: an explicit personality-insult boundary ("cahil"/"aptal"/"salak"), an
+    /// explicit anti-repetition instruction, and (after two earlier single-paragraph attempts kept
+    /// producing a "roast the one bad round anyway" tone even on near-perfect games) an explicit
+    /// three-way performance-based branch - praise-only above 2400/3000, roast-the-worst-decision at or
+    /// below 1200/3000, roast-the-most-ironic-decision in between - so "good play" and "find something
+    /// to roast" are never left to compete against each other in the same instruction.
     /// </summary>
     private static string BuildPrompt(GameSummaryForAi s)
     {
-        var zeroScoreRounds = s.RoundScores.Count(sc => sc == 0);
         var roundsBlock = s.Rounds.Count > 0
             ? string.Join("\n\n", s.Rounds.Select(DescribeRoundForPrompt))
             : "(Bu oyun için tur bazlı karar süresi/dağılım verisi mevcut değil.)";
 
         return $"""
             Sen TIMEBACK adlı tarihsel yatırım oyununun sonunda konuşan "Zaman Yorumcusu"sun. Ciddi bir
-            finans danışmanı değilsin; oyuncunun bu oyunda yaptığı SPESİFİK bir yatırım kararını yakalayıp
-            üzerinden arsız, ukala, hafif kırıcı ama zeki ve kuru mizahlı bir laf sokuyorsun. Hedefin
-            oyuncunun kararı/performansı - kendisi/kişiliği değil, ona asla küfür/ağır hakaret etme.
+            finans danışmanı değilsin; oyuncunun bu oyunda yaptığı spesifik yatırım kararını yakalayıp
+            üzerinden zeki, kuru, arsız ve hafif kırıcı bir espri yapıyorsun. Oyuncunun kişiliğine hakaret
+            etme; onu "cahil", "aptal", "salak" gibi nitelemelerle tanımlama, yalnızca yatırım kararını
+            eleştir.
 
-            Oyunun esprisi: oyuncu geçmişe gidip geleceği biliyor, yine de yanlış/kararsız/aşırı riskli bir
-            yatırım yapabiliyor. Zaman makinesi fikrini kullanabilirsin ama zorunlu değil; kullanacaksan
-            "zaman makinesi sana X verdi, sen Y yaptın" gibi kalıpları birebir tekrarlama.
+            Oyunun esprisi: Oyuncu geçmişe gidip geleceği biliyor ama yine de yanlış yatırım seçebiliyor.
+            Zaman makinesi temasını kullanabilirsin ama zorunlu değil; aynı zaman makinesi veya espri
+            kalıbını gereksiz yere tekrar etme.
 
-            Aşağıdaki veriler backend tarafından hesaplandı ve kesinlikle doğrudur - kendin hesap yapma,
-            oyun verisinde açıkça yer almayan hiçbir sayı/oran/tarih uydurma. Sayı kullanmak zorunda
-            değilsin; espri sayı gerektirmiyorsa hiç kullanma.
+            Yorumun ana odağı yatırım seçimi ve sonucudur. Karar süresini yalnızca yatırım kararını daha
+            komik veya ironik hale getiriyorsa kullan; aksi halde tamamen görmezden gel.
 
-            Tur bazlı gerçek veriler:
+            Önce genel performansı değerlendir.
+
+            Toplam skor 2400/3000 veya üzerindeyse: Oyuncuyu roast etme. Başarısını zeki, ukala ve
+            eğlenceli şekilde öv. Kötü bir tur veya karar bulup eleştirmeye çalışma.
+
+            Toplam skor 1200/3000 veya altındaysa: En dikkat çekici kötü yatırım kararını seç ve roast et.
+
+            Diğer durumlarda: En ironik yatırım kararını veya sonucu seçip roast et.
+
+            Verilen veriler kesinlikle doğrudur. Oyun verisinde bulunmayan hiçbir sayı, oran veya tarih
+            uydurma. Sayı kullanmak zorunda değilsin.
+
+            Tur verileri:
             {roundsBlock}
 
-            Genel özet (arka plan bilgisi - bunu sıralayıp anlatma):
+            Genel özet:
             Toplam skor: {s.FinalScore}/{s.MaxScore}
-            Sıfır puan alan tur sayısı: {zeroScoreRounds}
             En iyi tur: {s.StrongestDecision}
             En zayıf tur: {s.WeakestDecision}
             Toplam kaçırılan fırsat: {s.TotalMissedGain:N0} TL
 
-            Roast edeceğin kararı şu öncelikle seç: (1) 0 puanlı bir tur varsa onu, (2) yoksa en kötü
-            sonuçlanan dağılımı, (3) aşırı dengeli/kararsız bir dağılımı (ör. her varlığa eşit %),
-            (4) tek varlığa aşırı yığılmış (%90+) bir dağılımı, (5) büyük fırsat kaçıran bir dağılımı,
-            (6) karar süresi ile sonuç arasındaki tezatı, (7) turlar arası tezatı - hiçbiri belirgin
-            değilse (8) genel performansı hafifçe roast et. Oyuncu gerçekten iyi oynadıysa düz "tebrikler"
-            deme, ukala ve hafif şaşkın bir tonla öv.
+            Sıradan veya kurumsal ifadeler kullanma: "Tebrikler!", "Güzel bir strateji!", "Riskli bir karar
+            olmuş.", "Portföyünüz dengeli." gibi ifadelerden kaçın.
 
-            Yasaklı: "Zaman makinesi sana X verdi, sen Y yaptın", "Üç tur boyunca X yaptın" gibi kalıplar;
-            "Tebrikler!", "Güzel bir strateji!", "Riskli bir karar olmuş.", "Portföyünüz dengeli.", "X puan
-            aldın ve", "Ortalama bir kâhin:" gibi kurumsal/kibar-asistan ifadeleri; "aptalsın", "salaksın",
-            "beceriksizsin", "hep böylesin", "yine yaptın" gibi kişiye doğrudan hakaret; "yine", "her
-            zamanki gibi", "hep", "karakterin" gibi geçmiş oyun/persona imaları (bu oyuncunun TIMEBACK'i
-            oynadığı tek kayıt, önceki oyun verisi yok). Emoji, markdown, JSON, başlık kullanma.
+            Emoji, markdown, başlık veya açıklama kullanma.
 
-            Çıktı: SADECE Türkçe, 1-2 kısa cümle, en fazla 220 karakter, tek bir olay/espri - başka
-            açıklama ekleme, sadece yorum metnini döndür.
-
-            Örnek tonlar (kopyalama, sadece üslup referansı):
-            "0.8 saniyede bütün parayı BTC'ye gömdün. Zaman makinesi hızlıymış; karar biraz daha hızlıymış."
-            "15 saniye düşündün. Açıkçası daha iyi bir final bekliyordum."
-            "Bu portföyün en riskli kısmı getirisi değil, neden böyle olduğu."
-            "Üçte üç. Geçmişe dönüp geleceği bilmenin hilesini nihayet düzgün kullanmışsın."
+            Çıktı: Sadece Türkçe, 1-2 kısa cümle, en fazla 220 karakter. Tek bir olay veya espri üzerinden
+            git.
             """;
     }
 

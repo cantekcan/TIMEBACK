@@ -145,6 +145,27 @@ public class AiCommentatorTests
     }
 
     [Fact]
+    public async Task Gemini_response_longer_than_the_220_char_limit_is_trimmed_to_the_last_complete_sentence()
+    {
+        var firstSentence = "Bu turda tüm parasını Bitcoin'e yatırıp sıfır çekmesi, zaman makinesini sadece pahalı bir turizm aracına çevirmiş olmasından başka bir şey değil.";
+        // Comfortably under MaxPlausibleRawLength (600), so this is still accepted as a real comment
+        // (not rejected as garbage) - but well over MaxCommentaryLength (220), so the second sentence
+        // must be trimmed away entirely rather than the whole reply falling back.
+        var secondSentence = " Üstüne üstlük ikinci turda da aynı hatayı tekrarlayıp parasının geri kalanını da benzer şekilde eritmeyi başarmış, bu da onu iki kere aynı taşa çarpan biri yapıyor.";
+        var tooLongButValid = firstSentence + secondSentence;
+        tooLongButValid.Length.Should().BeGreaterThan(220).And.BeLessThan(600); // sanity-check the fixture
+
+        var handler = new StubHandler((_, _) => GeminiOk(tooLongButValid));
+        var gemini = NewCommentator(handler);
+
+        var comment = await gemini.CommentAsync(Summary, default);
+
+        comment.Model.Should().Be(PrimaryModel, "a real, valid comment that's just long must still be accepted, not fall back");
+        comment.Text.Length.Should().BeLessThanOrEqualTo(220);
+        comment.Text.Should().Be(firstSentence, "trimming must cut at the last complete sentence within the 220-char limit, not mid-sentence");
+    }
+
+    [Fact]
     public async Task Gemini_with_empty_message_content_uses_the_fallback()
     {
         var handler = new StubHandler((_, _) => GeminiOk(""));
