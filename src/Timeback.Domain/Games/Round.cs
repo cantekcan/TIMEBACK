@@ -87,8 +87,8 @@ public sealed class Round : Entity
         var valuation = PortfolioCalculator.Value(startingCapital, allocation.Lines, quotes);
         var outcome = RoundScoring.Score(valuation, quotes, cpiThen, cpiNow);
         // Real submission time, from the server's own clock - never the client's countdown - decides
-        // the speed bonus. The bonus is measured against the real 15-second selection window
-        // (StartedAtUtc + 15s), not EndsAtUtc - EndsAtUtc also carries the network-grace allowance,
+        // the speed bonus. The bonus is measured against the real 20-second selection window
+        // (StartedAtUtc + 20s), not EndsAtUtc - EndsAtUtc also carries the network-grace allowance,
         // which must stay pure submission tolerance and never buy extra time-bonus points.
         var windowEndUtc = EndsAtUtc!.Value - Game.NetworkGrace;
         outcome = RoundScoring.ApplyTimeBonus(outcome, windowEndUtc, nowUtc);

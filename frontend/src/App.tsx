@@ -133,11 +133,11 @@ function Landing({ onStart, onLeaderboard }: { onStart: () => void; onLeaderboar
     <div className="card">
       <div className="hero">
         <div className="big-q">"Geçmişe dönseydin paranı nereye yatırırdın?"</div>
-        <p className="muted">Rastgele bir tarih. 100.000 TL. 15 saniye. 3 tur.</p>
+        <p className="muted">Rastgele bir tarih. 100.000 TL. 20 saniye. 3 tur.</p>
       </div>
       <div className="steps">
         <div className="step"><div className="n">1</div><small>Geçmişten bir tarih ve 100.000 TL alırsın</small></div>
-        <div className="step"><div className="n">2</div><small>15 saniyede altın, borsa ve kripto arasında dağıt</small></div>
+        <div className="step"><div className="n">2</div><small>20 saniyede altın, borsa ve kripto arasında dağıt</small></div>
         <div className="step"><div className="n">3</div><small>Zaman ilerler — nominal ve reel getirini gör</small></div>
       </div>
       <div className="time-info">
@@ -213,7 +213,7 @@ function RoundScreen({ gameId, round, onLocked, onError }: {
   //
   // The deadline is anchored to when this screen actually mounts in the browser, not to the
   // server's round.startedAtUtc - the player never sees the network/render time between the
-  // server starting the round and the screen appearing eaten out of their 15 seconds. The
+  // server starting the round and the screen appearing eaten out of their 20 seconds. The
   // server still enforces its own authoritative deadline off startedAtUtc independently, so a
   // late submit is rejected there regardless of what the client shows.
   const totalMs = round.selectionWindowSeconds * 1000;
@@ -250,7 +250,7 @@ function RoundScreen({ gameId, round, onLocked, onError }: {
 
   // The client's own countdown is deliberately anchored earlier than the server's real deadline
   // (see the comment above `deadline`) - by design, the empty "time's up" submission below almost
-  // always reaches the server a moment *before* the server's own StartedAtUtc+15s+NetworkGrace
+  // always reaches the server a moment *before* the server's own StartedAtUtc+20s+NetworkGrace
   // cutoff, while the round is still technically open. The domain rightly rejects an empty
   // allocation for a round that's still open (422 - see AllocationSet.Create), so this first
   // rejection is an expected race, not a real error: retry at a fixed short interval - never tied
@@ -482,7 +482,7 @@ function RoundResultScreen({ round, result, onNext }: { round: RoundView; result
         <p className="explain">
           Bu turda en kötü olası sonuç {fmtTRY(result.worstPossibleValue)}, en iyi olası sonuç {fmtTRY(result.bestPossibleValue)} idi.
           Sen {fmtTRY(result.finalValue)} ile bu aralığın <b>%{pct1(skillPct)}</b>'ine ulaştın{result.investmentScore != null ? " - yatırım puanın da bunun 700 üzerinden karşılığı." : "."}
-          {result.timeBonus != null && " Kalan süreyle orantılı bir hız bonusu da eklenir: 15 saniyede kilitlersen +300 puan."}
+          {result.timeBonus != null && " Kalan süreyle orantılı bir hız bonusu da eklenir: 20 saniyede kilitlersen +300 puan."}
         </p>
       </div>
 

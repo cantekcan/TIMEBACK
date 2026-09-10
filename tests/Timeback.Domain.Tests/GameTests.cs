@@ -79,7 +79,7 @@ public class GameTests
         for (var n = 1; n <= RoundScoring.TotalRounds; n++)
         {
             game.BeginCurrentRound(now);
-            // Submitted the instant the round began -> full 15s remaining -> max time bonus too.
+            // Submitted the instant the round began -> full 20s remaining -> max time bonus too.
             game.SubmitRound(n, Alloc(100, 0), Quotes(), 100, 100, now);
         }
 
@@ -110,22 +110,22 @@ public class GameTests
         r.Result!.Assets.Should().BeEmpty();
     }
 
-    // -- Round score = investment (0-700) + time bonus (0-300), measured against the real 15s window,
+    // -- Round score = investment (0-700) + time bonus (0-300), measured against the real 20s window,
     //    never the 2s network-grace tacked onto EndsAtUtc for submission tolerance -------------------
 
     [Theory]
     [InlineData(0, 300)]   // locked in instantly -> full bonus
-    [InlineData(5, 200)]
-    [InlineData(10, 100)]
-    [InlineData(14, 20)]
-    [InlineData(15, 0)]    // exactly at the real window's end -> no bonus, still on time
-    [InlineData(16, 0)]    // inside the network-grace allowance -> accepted, but grace buys no bonus
-    [InlineData(17, 0)]    // right at the very edge of the grace allowance -> still accepted, still 0
+    [InlineData(5, 225)]
+    [InlineData(10, 150)]
+    [InlineData(15, 75)]
+    [InlineData(20, 0)]    // exactly at the real window's end -> no bonus, still on time
+    [InlineData(21, 0)]    // inside the network-grace allowance -> accepted, but grace buys no bonus
+    [InlineData(22, 0)]    // right at the very edge of the grace allowance -> still accepted, still 0
     public void Time_bonus_is_measured_against_the_real_window_not_the_network_grace(int elapsedSeconds, int expectedTimeBonus)
     {
         var now = new DateTime(2024, 1, 1, 12, 0, 0, DateTimeKind.Utc);
         var game = NewGame(now);
-        game.BeginCurrentRound(now); // EndsAtUtc = now + 15s + 2s grace
+        game.BeginCurrentRound(now); // EndsAtUtc = now + 20s + 2s grace
 
         game.SubmitRound(1, Alloc(100, 0), Quotes(), 100, 100, now.AddSeconds(elapsedSeconds));
 
@@ -168,9 +168,9 @@ public class GameTests
     }
 
     [Fact]
-    public void Selection_window_is_fifteen_seconds()
+    public void Selection_window_is_twenty_seconds()
     {
-        Game.SelectionWindow.Should().Be(TimeSpan.FromSeconds(15));
+        Game.SelectionWindow.Should().Be(TimeSpan.FromSeconds(20));
     }
 
     [Fact]

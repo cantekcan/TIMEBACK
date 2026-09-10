@@ -38,7 +38,7 @@ public sealed record RoundOutcome(
 /// with a speed bonus once the real submission time is known:
 ///
 ///   investmentScore = floor( <see cref="MaxInvestmentScore"/> * skill )      - via <see cref="ScaleInvestmentScore"/>
-///   timeBonus       = clamp( floor(remainingSeconds * <see cref="MaxTimeBonus"/> / 15), 0, <see cref="MaxTimeBonus"/> )
+///   timeBonus       = clamp( floor(remainingSeconds * <see cref="MaxTimeBonus"/> / 20), 0, <see cref="MaxTimeBonus"/> )
 ///   round score     = investmentScore + timeBonus
 ///
 /// so a great pick decided instantly still outscores the same pick made with one second left on the
@@ -91,21 +91,23 @@ public static class RoundScoring
     /// <summary>Speed bonus for locking in before the deadline, computed from the server's own clock -
     /// never the client's countdown. <paramref name="submittedAtUtc"/> is when the round was actually
     /// resolved (a real submission, or the deadline itself for a timeout); remaining time is measured
-    /// against <paramref name="windowEndUtc"/>, which must be the real 15-second selection window's end
-    /// (<see cref="Round.StartedAtUtc"/> + 15s) - NOT <see cref="Round.EndsAtUtc"/>, which additionally
+    /// against <paramref name="windowEndUtc"/>, which must be the real 20-second selection window's end
+    /// (<see cref="Round.StartedAtUtc"/> + 20s) - NOT <see cref="Round.EndsAtUtc"/>, which additionally
     /// carries the round's network-grace allowance. A submission that only lands inside that grace
     /// window (still accepted, per the round's normal deadline rules) earns no time bonus: the grace
     /// exists purely as network tolerance, never as extra scoring time.</summary>
     public static int TimeBonus(DateTime windowEndUtc, DateTime submittedAtUtc)
     {
         var remainingSeconds = (decimal)(windowEndUtc - submittedAtUtc).TotalSeconds;
-        var bonus = (int)Math.Floor(Math.Max(0m, remainingSeconds) * MaxTimeBonus / 15m);
+        // 20 = the selection window in seconds (must track Game.SelectionWindow): a full window
+        // remaining scores the whole MaxTimeBonus, zero remaining scores nothing, linear in between.
+        var bonus = (int)Math.Floor(Math.Max(0m, remainingSeconds) * MaxTimeBonus / 20m);
         return Math.Clamp(bonus, 0, MaxTimeBonus);
     }
 
     /// <summary>Combines an investment-only <see cref="RoundOutcome"/> with the speed bonus for when it
     /// was actually submitted, producing the final round score (investment + time, capped at <see cref="MaxRoundScore"/>).
-    /// <paramref name="windowEndUtc"/> must be the real 15-second selection window's end (see <see cref="TimeBonus"/>).</summary>
+    /// <paramref name="windowEndUtc"/> must be the real 20-second selection window's end (see <see cref="TimeBonus"/>).</summary>
     public static RoundOutcome ApplyTimeBonus(RoundOutcome outcome, DateTime windowEndUtc, DateTime submittedAtUtc)
     {
         var investmentScore = ScaleInvestmentScore(outcome.Score);

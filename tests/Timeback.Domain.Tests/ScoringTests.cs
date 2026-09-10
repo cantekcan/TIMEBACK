@@ -103,13 +103,13 @@ public class ScoringTests
     // -- Time bonus: 700/300 split (see RoundScoring.TimeBonus / ScaleInvestmentScore) --------------
 
     [Theory]
-    [InlineData(15.0, 300)]  // full window remaining -> max bonus
-    [InlineData(10.0, 200)]
-    [InlineData(5.0, 100)]
-    [InlineData(2.0, 40)]
-    [InlineData(0.5, 10)]
+    [InlineData(20.0, 300)]  // full 20s window remaining -> max bonus
+    [InlineData(10.0, 150)]
+    [InlineData(5.0, 75)]
+    [InlineData(2.0, 30)]
+    [InlineData(0.5, 7)]
     [InlineData(0.0, 0)]
-    public void Time_bonus_is_floor_of_remaining_seconds_times_twenty(double remainingSeconds, int expectedBonus)
+    public void Time_bonus_is_the_remaining_share_of_the_selection_window(double remainingSeconds, int expectedBonus)
     {
         var ends = new DateTime(2024, 1, 1, 12, 0, 0, DateTimeKind.Utc);
         var submitted = ends.AddSeconds(-remainingSeconds);
@@ -150,7 +150,7 @@ public class ScoringTests
         var outcome = RoundScoring.Score(best, quotes, 100, 100); // legacy Score = 1000 (best pick)
 
         var ends = new DateTime(2024, 1, 1, 12, 0, 0, DateTimeKind.Utc);
-        var combined = RoundScoring.ApplyTimeBonus(outcome, ends, ends.AddSeconds(-15));
+        var combined = RoundScoring.ApplyTimeBonus(outcome, ends, ends.AddSeconds(-20));
 
         combined.InvestmentScore.Should().Be(700);
         combined.TimeBonus.Should().Be(300);

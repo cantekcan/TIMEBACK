@@ -19,7 +19,7 @@ public sealed class Game : AggregateRoot
 {
     public const decimal StartingCapitalAmount = 100_000m;
 
-    public static readonly TimeSpan SelectionWindow = TimeSpan.FromSeconds(15);
+    public static readonly TimeSpan SelectionWindow = TimeSpan.FromSeconds(20);
     /// <summary>Extra server-side slack for network latency before a submission is rejected as late.</summary>
     public static readonly TimeSpan NetworkGrace = TimeSpan.FromSeconds(2);
 

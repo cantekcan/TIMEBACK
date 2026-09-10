@@ -71,7 +71,7 @@ describe("Round timer and locking", () => {
   const makeRound = (): RoundView => ({
     number: 1, totalRounds: 3, requestedDate: "2020-01-01",
     startingCapital: 100_000, startedAtUtc: new Date().toISOString(),
-    // A short real window (not the production 15s) so the timeout test doesn't need to wait that
+    // A short real window (not the production 20s) so the timeout test doesn't need to wait that
     // long - selectionWindowSeconds is just a prop RoundScreen reads, never hardcoded on the client.
     selectionWindowSeconds: 1, holdingPeriodYears: 2,
     assets: [

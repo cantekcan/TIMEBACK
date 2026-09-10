@@ -214,12 +214,28 @@ input[type=text] { flex: 1; background: var(--bg); border: 1px solid var(--line)
 input[type=text]:focus { outline: 2px solid var(--accent-dim); border-color: var(--accent-dim); }
 
 /* ---- leaderboard ---- */
-.podium { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; align-items: end; margin: 6px 0 14px; }
-.pod { background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px 8px; text-align: center; }
+/* container-type makes the podium itself the query container, so the layout below reacts to how
+   much room the card actually gives it - not to the viewport width. A 6-track grid (each card
+   spans 2 = three equal thirds) is what lets the narrow layout re-split the row into halves
+   without a media query. minmax(0, ...) lets a track shrink past the nowrap nickname's intrinsic
+   width so the ellipsis on .nm engages instead of the track blowing out and shoving the third
+   card off-screen. */
+.podium { container-type: inline-size;
+  display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; align-items: end; margin: 6px 0 14px; }
+.pod { grid-column: span 2; min-width: 0; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px 8px; text-align: center; }
 .pod.p1 { border-color: var(--accent); box-shadow: 0 0 20px -6px var(--accent); padding-top: 20px; }
 .pod .medal { font-size: 20px; }
 .pod .nm { font-weight: 700; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pod .sc { color: var(--accent); font-weight: 800; }
+
+/* Not enough room for three podium cards side by side (phones): 1st place takes its own full-width
+   row, 2nd and 3rd split the row beneath it in half. The gold border + glow (visual hierarchy)
+   stay; only the desktop podium-riser top padding is dropped - nothing to rise above here. */
+@container (max-width: 380px) {
+  .pod.p1 { grid-column: 1 / -1; order: -1; padding-top: 12px; }
+  .pod.p2 { grid-column: 1 / span 3; order: 1; }
+  .pod.p3 { grid-column: span 3 / -1; order: 2; }
+}
 .lb-list { display: grid; gap: 2px; }
 .lb-row { display: grid; grid-template-columns: 32px 1fr auto; gap: 10px; padding: 10px 8px; border-radius: 8px; }
 .lb-row:nth-child(odd) { background: var(--panel-2); }
